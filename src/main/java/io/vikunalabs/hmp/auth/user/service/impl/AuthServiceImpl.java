@@ -27,6 +27,7 @@ import java.util.UUID;
 @Slf4j
 @RequiredArgsConstructor
 @Service
+@Transactional(readOnly = true) // Default to read-only for better performance
 public class AuthServiceImpl implements AuthService {
 
     private final UserAccountService accountService;
@@ -35,17 +36,29 @@ public class AuthServiceImpl implements AuthService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
-    @Transactional
+    @Transactional // Write transaction only where needed
     public ApiResponse<RegistrationResponse> register(RegistrationRequest request) {
-        log.debug("Attempting to register user with username: {}", request.username());
+        log.debug("Attempting to register user with username: {} and email: {}",
+                request.username(), request.email());
 
+        // Validate uniqueness before creating entities
         accountService.validateUniqueUsernameAndEmail(request.username(), request.email());
-        var userProfile = profileService.createUserProfile(request);
 
+        // Create user profile with associated account
+        UserProfile userProfile = profileService.createUserProfile(request);
+
+        // Publish event for async email processing
         publishRegistrationEvent(userProfile.getId());
-        log.info("Successfully registered user with ID: {}", userProfile.getId());
-        return new ApiResponse<RegistrationResponse>(true, mapToRegistrationResponse(userProfile), null, "Registration successful! Please check your email to verify your account.");
 
+        log.info("Successfully registered user with ID: {} and email: {}",
+                userProfile.getId(), request.email());
+
+        return new ApiResponse<>(
+                true,
+                mapToRegistrationResponse(userProfile),
+                null,
+                "Registration successful! Please check your email to verify your account."
+        );
     }
 
     @Override
@@ -53,33 +66,45 @@ public class AuthServiceImpl implements AuthService {
     public ApiResponse<String> confirmAccount(UUID tokenValue, TokenType tokenType) {
         log.info("Attempting to activate account with token: {}", tokenValue);
 
-        var token = tokenService.confirmToken(tokenValue, tokenType);
-        var userAccount = accountService.enableUserAccount(token.getUserAccount().getId());
+        // Confirm token and enable account in one transaction
+        Token token = tokenService.confirmToken(tokenValue, tokenType);
+        UserAccount userAccount = accountService.enableUserAccount(token.getUserAccount().getId());
 
-        log.info("Successfully activated account for user ID: {}", userAccount.getId());
+        log.info("Successfully activated account for user ID: {} with email: {}",
+                userAccount.getId(), userAccount.getEmail());
+
+        // Publish activation event
         publishAccountActivationEvent(userAccount);
 
         return new ApiResponse<>(true, null, "Account verified successfully! You can now log in.");
     }
 
     @Override
+    @Transactional // Need write access for token creation
     public ApiResponse<String> resendVerificationCode(ResendVerificationRequest request) {
+        log.info("Resend verification requested for email: {}", request.email());
 
-        // Rate limiting - allow only one request per 5 minutes
+        // Rate limiting check
         if (tokenService.hasRecentTokenRequest(request.email(), TokenType.EMAIL_VERIFICATION, 5)) {
+            log.warn("Rate limit exceeded for email verification request: {}", request.email());
             throw new TooManyRequestsException("Please wait before requesting another verification email");
         }
 
+        // Find user account
         UserAccount userAccount = accountService.findByEmail(request.email());
+
+        // Check if already verified
         if (userAccount.isEmailVerified()) {
+            log.warn("Verification requested for already verified account: {}", request.email());
             throw AccountAlreadyActivatedException.withEmail(request.email());
         }
 
+        // Create new verification token
         Token token = tokenService.createToken(userAccount.getId(), TokenType.EMAIL_VERIFICATION);
 
-        // send email
-        String confirmationLink = String.format("%s?token=%s", "http://localhost:8080/api/auth/confirm-account", token.getValue());
-        log.info("Generated confirmation link for user {}: {}", userAccount.getId(), confirmationLink);
+        // Log for testing (in production, this would trigger email service)
+        log.info("Generated verification token for user {}: {}", userAccount.getId(), token.getValue());
+
         return new ApiResponse<>(true, "Verification email sent! Please check your email.");
     }
 

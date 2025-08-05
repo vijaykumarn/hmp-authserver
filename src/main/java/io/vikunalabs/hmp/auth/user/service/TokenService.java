@@ -16,4 +16,6 @@ public interface TokenService {
     void revokePendingTokens(UserAccount userAccount, TokenType tokenType);
 
     boolean hasRecentTokenRequest(String email, TokenType tokenType, int minutes);
+
+    void cleanupExpiredTokens();
 }
