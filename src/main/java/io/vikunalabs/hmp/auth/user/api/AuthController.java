@@ -21,32 +21,41 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/auth")
+@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000"}, allowCredentials = "")
 public class AuthController {
 
     private final AuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<RegistrationResponse>> registerUser(@Valid @RequestBody RegistrationRequest registrationRequest) {
+    public ResponseEntity<ApiResponse<RegistrationResponse>> registerUser(
+            @Valid @RequestBody RegistrationRequest registrationRequest) {
+        log.info("Registration attempt for email: {}", registrationRequest.email());
         ApiResponse<RegistrationResponse> response = authService.register(registrationRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/confirm-account")
-    public ResponseEntity<ApiResponse<String>> handleTokenConfirmation(@NotBlank @RequestParam("token") String tokenValue) {
+    public ResponseEntity<ApiResponse<String>> handleTokenConfirmation(
+            @NotBlank @RequestParam("token") String tokenValue) {
+        log.info("Account confirmation attempt with token: {}", tokenValue);
+
         UUID token;
         try {
             token = UUID.fromString(tokenValue);
         } catch (IllegalArgumentException ex) {
-            log.warn("Invalid UUID token: {}", tokenValue);
+            log.warn("Invalid UUID token format: {}", tokenValue);
             throw InvalidTokenException.withTokenValue(tokenValue);
         }
+
         ApiResponse<String> response = authService.confirmAccount(token, TokenType.EMAIL_VERIFICATION);
-        return ResponseEntity.status(HttpStatus.OK).body(response);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/resend-verification")
-    public ResponseEntity<ApiResponse<String>> resendVerification(@Valid @RequestBody ResendVerificationRequest request) {
+    public ResponseEntity<ApiResponse<String>> resendVerification(
+            @Valid @RequestBody ResendVerificationRequest request) {
+        log.info("Resend verification attempt for email: {}", request.email());
         ApiResponse<String> response = authService.resendVerificationCode(request);
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+        return ResponseEntity.accepted().body(response);
     }
 }
