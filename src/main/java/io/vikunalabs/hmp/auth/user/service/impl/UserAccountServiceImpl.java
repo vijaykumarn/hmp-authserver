@@ -82,4 +82,9 @@ public class UserAccountServiceImpl implements UserAccountService {
     public UserAccount save(UserAccount userAccount) {
         return accountRepository.save(userAccount);
     }
+
+    @Override
+    public UserAccount getByUsernameOrEmail(String username, String email) {
+        return accountRepository.getByUsernameAndEmail(username, email).orElseThrow(() -> UserNotFoundException.withUsernameAndEmail(username, email));
+    }
 }

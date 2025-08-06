@@ -15,4 +15,6 @@ public interface UserAccountService {
     UserAccount enableUserAccount(Long userId);
 
     UserAccount getUserAccountReference(Long userId);
+
+    UserAccount getByUsernameOrEmail(String username, String email);
 }

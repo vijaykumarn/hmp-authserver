@@ -2,17 +2,20 @@ package io.vikunalabs.hmp.auth.user.api;
 
 import io.vikunalabs.hmp.auth.shared.ApiResponse;
 import io.vikunalabs.hmp.auth.shared.exception.InvalidTokenException;
-import io.vikunalabs.hmp.auth.user.api.dto.RegistrationRequest;
-import io.vikunalabs.hmp.auth.user.api.dto.RegistrationResponse;
-import io.vikunalabs.hmp.auth.user.api.dto.ResendVerificationRequest;
+import io.vikunalabs.hmp.auth.user.api.dto.*;
 import io.vikunalabs.hmp.auth.user.domain.TokenType;
 import io.vikunalabs.hmp.auth.user.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -25,28 +28,22 @@ import java.util.UUID;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthenticationManager  authenticationManager;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<RegistrationResponse>> registerUser(
-            @Valid @RequestBody RegistrationRequest registrationRequest) {
-        log.info("Registration attempt for email: {}", registrationRequest.email());
-        ApiResponse<RegistrationResponse> response = authService.register(registrationRequest);
+            @Valid @RequestBody RegistrationRequest request) {
+        log.info("Registration attempt for email: {}", request.email());
+        ApiResponse<RegistrationResponse> response = authService.register(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/confirm-account")
-    public ResponseEntity<ApiResponse<String>> handleTokenConfirmation(
+    public ResponseEntity<ApiResponse<String>> confirmAccount(
             @NotBlank @RequestParam("token") String tokenValue) {
         log.info("Account confirmation attempt with token: {}", tokenValue);
 
-        UUID token;
-        try {
-            token = UUID.fromString(tokenValue);
-        } catch (IllegalArgumentException ex) {
-            log.warn("Invalid UUID token format: {}", tokenValue);
-            throw InvalidTokenException.withTokenValue(tokenValue);
-        }
-
+        UUID token = parseToken(tokenValue);
         ApiResponse<String> response = authService.confirmAccount(token, TokenType.EMAIL_VERIFICATION);
         return ResponseEntity.ok(response);
     }
@@ -57,5 +54,69 @@ public class AuthController {
         log.info("Resend verification attempt for email: {}", request.email());
         ApiResponse<String> response = authService.resendVerificationCode(request);
         return ResponseEntity.accepted().body(response);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<AuthResponse>> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse) {
+        log.info("Login attempt for email: {}", request.email());
+
+        // Use Spring Security's AuthenticationManager
+        Authentication authenticationRequest = UsernamePasswordAuthenticationToken
+                .unauthenticated(request.email(), request.password());
+
+        Authentication authenticationResponse = authenticationManager.authenticate(authenticationRequest);
+
+        // Handle successful authentication
+        ApiResponse<AuthResponse> response = authService.handleSuccessfulLogin(
+                authenticationResponse, request.rememberMe(), httpRequest, httpResponse);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<String>> logout(
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        log.info("Logout attempt");
+        ApiResponse<String> logoutResponse = authService.logout(request, response);
+        return ResponseEntity.ok(logoutResponse);
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<String>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        log.info("Forgot password attempt for email: {}", request.email());
+        ApiResponse<String> response = authService.forgotPassword(request);
+        return ResponseEntity.accepted().body(response);
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<String>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+        log.info("Password reset attempt with token");
+        UUID token = parseToken(request.token());
+        ApiResponse<String> response = authService.resetPassword(token, request.newPassword());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/confirm-password-token")
+    public ResponseEntity<ApiResponse<String>> confirmPasswordToken(
+            @NotBlank @RequestParam("token") String tokenValue) {
+        log.info("Password token validation attempt");
+        UUID token = parseToken(tokenValue);
+        ApiResponse<String> response = authService.confirmPasswordToken(token);
+        return ResponseEntity.ok(response);
+    }
+
+    private UUID parseToken(String tokenValue) {
+        try {
+            return UUID.fromString(tokenValue);
+        } catch (IllegalArgumentException ex) {
+            log.warn("Invalid UUID token format: {}", tokenValue);
+            throw InvalidTokenException.withTokenValue(tokenValue);
+        }
     }
 }
