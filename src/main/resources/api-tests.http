@@ -1,0 +1,73 @@
+### Variables
+@baseUrl = http://localhost:8080
+@username = john.doe
+@email = john.doe@example.com
+@password = SecurePass123!
+@token = 5dcd494a-97e5-427e-91f4-6a174c5fd6a8
+
+### 1. Register User
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "email": "{{email}}",
+  "password": "{{password}}",
+  "organisation": "JohnDoe Labs",
+  "terms": true,
+  "marketing": false
+}
+
+### 2. Confirm Account
+GET {{baseUrl}}/api/auth/confirm-account?token={{token}}
+
+### 3. Login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}",
+  "rememberMe": false
+}
+
+### 4. Login with Remember Me
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}",
+  "rememberMe": true
+}
+
+### 5. Logout
+POST {{baseUrl}}/api/auth/logout
+
+### 6. Forgot Password
+POST {{baseUrl}}/api/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": "{{email}}"
+}
+
+### 7. Confirm Password Token
+GET {{baseUrl}}/api/auth/confirm-password-token?token={{token}}
+
+### 8. Reset Password
+POST {{baseUrl}}/api/auth/reset-password
+Content-Type: application/json
+
+{
+  "token": "{{token}}",
+  "newPassword": "NewSecurePass123!"
+}
+
+### 9. Resend Verification
+POST {{baseUrl}}/api/auth/resend-verification
+Content-Type: application/json
+
+{
+  "email": "{{email}}"
+}

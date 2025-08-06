@@ -21,6 +21,9 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long> 
 
     Optional<UserExistsDTO> findByUsernameOrEmail(String username, String email);
 
+    @Query ("SELECT u from UserAccount  u WHERE u.email = :email OR u.username = :username")
+    Optional<UserAccount> getByUsernameAndEmail(String username, String email);
+
     @Query("SELECT u FROM UserAccount u WHERE u.emailVerified = false AND u.userProfile.createdAt < :cutoffTime")
     List<UserAccount> findUnverifiedAccountsOlderThan(@Param("cutoffTime") Instant cutoffTime);
 }

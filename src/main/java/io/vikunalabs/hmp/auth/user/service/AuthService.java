@@ -1,10 +1,11 @@
 package io.vikunalabs.hmp.auth.user.service;
 
 import io.vikunalabs.hmp.auth.shared.ApiResponse;
-import io.vikunalabs.hmp.auth.user.api.dto.RegistrationRequest;
-import io.vikunalabs.hmp.auth.user.api.dto.RegistrationResponse;
-import io.vikunalabs.hmp.auth.user.api.dto.ResendVerificationRequest;
+import io.vikunalabs.hmp.auth.user.api.dto.*;
 import io.vikunalabs.hmp.auth.user.domain.TokenType;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.core.Authentication;
 
 import java.util.UUID;
 
@@ -16,4 +17,17 @@ public interface AuthService {
 
     ApiResponse<String> resendVerificationCode(ResendVerificationRequest request);
 
+    ApiResponse<AuthResponse> handleSuccessfulLogin(
+            Authentication authentication,
+            boolean rememberMe,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse);
+
+    ApiResponse<String> logout(HttpServletRequest request, HttpServletResponse response);
+
+    ApiResponse<String> forgotPassword(ForgotPasswordRequest request);
+
+    ApiResponse<String> resetPassword(UUID tokenValue, String newPassword);
+
+    ApiResponse<String> confirmPasswordToken(UUID tokenValue);
 }
