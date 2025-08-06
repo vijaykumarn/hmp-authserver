@@ -4,6 +4,8 @@ import io.vikunalabs.hmp.auth.shared.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -15,6 +17,34 @@ import java.util.Map;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDisabledException(DisabledException ex) {
+        log.warn("Login attempt with disabled account: {}", ex.getMessage());
+
+        ApiResponse<Void> response = new ApiResponse<>(
+                false,
+                null,
+                "ACCOUNT_NOT_VERIFIED",
+                "Please verify your email address before logging in"
+        );
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
+        log.warn("Invalid login credentials: {}", ex.getMessage());
+
+        ApiResponse<Void> response = new ApiResponse<>(
+                false,
+                null,
+                "INVALID_CREDENTIALS",
+                "Invalid username or password"
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
 
     @ExceptionHandler({
             EmailAlreadyTakenException.class,

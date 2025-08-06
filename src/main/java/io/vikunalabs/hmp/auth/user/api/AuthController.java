@@ -61,11 +61,11 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
-        log.info("Login attempt for email: {}", request.email());
+        log.info("Login attempt for email: {}", request.login());
 
         // Use Spring Security's AuthenticationManager
         Authentication authenticationRequest = UsernamePasswordAuthenticationToken
-                .unauthenticated(request.email(), request.password());
+                .unauthenticated(request.login(), request.password());
 
         Authentication authenticationResponse = authenticationManager.authenticate(authenticationRequest);
 

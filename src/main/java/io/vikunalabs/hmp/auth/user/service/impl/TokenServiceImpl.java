@@ -5,10 +5,10 @@ import io.vikunalabs.hmp.auth.shared.exception.TokenNotFoundException;
 import io.vikunalabs.hmp.auth.user.domain.Token;
 import io.vikunalabs.hmp.auth.user.domain.TokenStatus;
 import io.vikunalabs.hmp.auth.user.domain.TokenType;
-import io.vikunalabs.hmp.auth.user.domain.UserAccount;
+import io.vikunalabs.hmp.auth.user.domain.User;
 import io.vikunalabs.hmp.auth.user.repository.TokenRepository;
 import io.vikunalabs.hmp.auth.user.service.TokenService;
-import io.vikunalabs.hmp.auth.user.service.UserAccountService;
+import io.vikunalabs.hmp.auth.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,7 +26,7 @@ import java.util.UUID;
 public class TokenServiceImpl implements TokenService {
 
     private final TokenRepository tokenRepository;
-    private final UserAccountService accountService;
+    private final UserService userService;
 
     @Override
     public Token findValidToken(UUID tokenValue, TokenType tokenType) {
@@ -55,14 +55,14 @@ public class TokenServiceImpl implements TokenService {
     public Token createToken(Long userId, TokenType tokenType) {
         log.debug("Creating {} token for user ID: {}", tokenType, userId);
 
-        UserAccount userAccount = accountService.getUserAccountReference(userId);
+        User user = userService.getUserReference(userId);
 
         // Revoke any existing pending tokens for this user and type
-        revokePendingTokens(userAccount, tokenType);
+        revokePendingTokens(user, tokenType);
 
         // Create new token with 1-hour expiry
         Instant expiresAt = Instant.now().plus(1, ChronoUnit.HOURS);
-        Token token = new Token(userAccount, tokenType, expiresAt);
+        Token token = new Token(user, tokenType, expiresAt);
 
         Token savedToken = tokenRepository.save(token);
         log.info("Created {} token for user ID: {} with expiry: {}",
@@ -80,20 +80,20 @@ public class TokenServiceImpl implements TokenService {
         token.confirm();
 
         Token confirmedToken = tokenRepository.save(token);
-        log.info("Confirmed {} token for user ID: {}", tokenType, token.getUserAccount().getId());
+        log.info("Confirmed {} token for user ID: {}", tokenType, token.getUser().getId());
 
         return confirmedToken;
     }
 
     @Override
     @Transactional
-    public void revokePendingTokens(UserAccount userAccount, TokenType tokenType) {
+    public void revokePendingTokens(User user, TokenType tokenType) {
         List<Token> pendingTokens = tokenRepository
-                .findByUserAccountAndTokenTypeAndStatus(userAccount, tokenType, TokenStatus.PENDING);
+                .findByUserAndTokenTypeAndStatus(user, tokenType, TokenStatus.PENDING);
 
         if (!pendingTokens.isEmpty()) {
             log.debug("Revoking {} pending {} tokens for user ID: {}",
-                    pendingTokens.size(), tokenType, userAccount.getId());
+                    pendingTokens.size(), tokenType, user.getId());
             pendingTokens.forEach(Token::revoke);
             tokenRepository.saveAll(pendingTokens);
         }

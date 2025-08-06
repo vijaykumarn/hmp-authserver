@@ -40,8 +40,8 @@ public class Token implements Serializable {
     private TokenType tokenType;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_account_id")
-    private UserAccount userAccount;
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @CreatedDate
     private Instant createdAt;
@@ -49,15 +49,15 @@ public class Token implements Serializable {
     private Instant expiresAt;
     private Instant confirmedAt;
 
-    public Token(UserAccount userAccount, TokenType tokenType, Instant expiresAt) {
+    public Token(User user, TokenType tokenType, Instant expiresAt) {
         this.value = UUID.randomUUID();
         this.tokenType = tokenType;
-        this.userAccount = userAccount;
+        this.user = user;
         this.expiresAt = expiresAt;
         this.status = TokenStatus.PENDING;
     }
 
-    // Helper methods
+    // Helper methods remain the same
     public boolean isExpired() {
         return Instant.now().isAfter(expiresAt);
     }

@@ -1,13 +1,15 @@
 package io.vikunalabs.hmp.auth.user.service.impl;
 
 import io.vikunalabs.hmp.auth.shared.ApiResponse;
-import io.vikunalabs.hmp.auth.shared.exception.*;
+import io.vikunalabs.hmp.auth.shared.exception.AccountAlreadyActivatedException;
+import io.vikunalabs.hmp.auth.shared.exception.TooManyRequestsException;
+import io.vikunalabs.hmp.auth.shared.exception.UserNotFoundException;
 import io.vikunalabs.hmp.auth.user.api.dto.*;
 import io.vikunalabs.hmp.auth.user.domain.Token;
 import io.vikunalabs.hmp.auth.user.domain.TokenType;
-import io.vikunalabs.hmp.auth.user.domain.UserAccount;
-import io.vikunalabs.hmp.auth.user.domain.UserProfile;
-import io.vikunalabs.hmp.auth.user.events.UserAccountActivationEvent;
+import io.vikunalabs.hmp.auth.user.domain.User;
+import io.vikunalabs.hmp.auth.user.domain.UserRole;
+import io.vikunalabs.hmp.auth.user.events.UserActivationEvent;
 import io.vikunalabs.hmp.auth.user.events.UserRegistrationEvent;
 import io.vikunalabs.hmp.auth.user.service.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,7 +18,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,8 +30,7 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class AuthServiceImpl implements AuthService {
 
-    private final UserAccountService accountService;
-    private final UserProfileService profileService;
+    private final UserService userService;
     private final TokenService tokenService;
     private final SessionService sessionService;
     private final PasswordEncoder passwordEncoder;
@@ -42,17 +42,22 @@ public class AuthServiceImpl implements AuthService {
         log.debug("Attempting to register user with username: {} and email: {}",
                 request.username(), request.email());
 
-        accountService.validateUniqueUsernameAndEmail(request.username(), request.email());
-        UserProfile userProfile = profileService.createUserProfile(request);
+        // Validate unique username and email
+        userService.validateUniqueUsernameAndEmail(request.username(), request.email());
 
-        publishRegistrationEvent(userProfile.getId());
+        // Create user entity
+        User user = createUserFromRequest(request);
+        User savedUser = userService.save(user);
+
+        // Publish registration event for email verification
+        publishRegistrationEvent(savedUser.getId());
 
         log.info("Successfully registered user with ID: {} and email: {}",
-                userProfile.getId(), request.email());
+                savedUser.getId(), savedUser.getEmail());
 
         return new ApiResponse<>(
                 true,
-                mapToRegistrationResponse(userProfile),
+                mapToRegistrationResponse(savedUser),
                 null,
                 "Registration successful! Please check your email to verify your account."
         );
@@ -64,12 +69,12 @@ public class AuthServiceImpl implements AuthService {
         log.info("Attempting to activate account with token: {}", tokenValue);
 
         Token token = tokenService.confirmToken(tokenValue, tokenType);
-        UserAccount userAccount = accountService.enableUserAccount(token.getUserAccount().getId());
+        User user = userService.enableUser(token.getUser().getId());
 
         log.info("Successfully activated account for user ID: {} with email: {}",
-                userAccount.getId(), userAccount.getEmail());
+                user.getId(), user.getEmail());
 
-        publishAccountActivationEvent(userAccount);
+        publishAccountActivationEvent(user);
 
         return new ApiResponse<>(true, "Account verified successfully! You can now log in.");
     }
@@ -84,17 +89,46 @@ public class AuthServiceImpl implements AuthService {
             throw new TooManyRequestsException("Please wait before requesting another verification email");
         }
 
-        UserAccount userAccount = accountService.findByEmail(request.email());
+        User user = userService.findByEmail(request.email());
 
-        if (userAccount.isEmailVerified()) {
+        if (user.isEmailVerified()) {
             log.warn("Verification requested for already verified account: {}", request.email());
             throw AccountAlreadyActivatedException.withEmail(request.email());
         }
 
-        Token token = tokenService.createToken(userAccount.getId(), TokenType.EMAIL_VERIFICATION);
-        log.info("Generated verification token for user {}: {}", userAccount.getId(), token.getValue());
+        Token token = tokenService.createToken(user.getId(), TokenType.EMAIL_VERIFICATION);
+        log.info("Generated verification token for user {}: {}", user.getId(), token.getValue());
 
         return new ApiResponse<>(true, "Verification email sent! Please check your email.");
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<AuthResponse> handleSuccessfulLogin(
+            Authentication authentication,
+            boolean rememberMe,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse) {
+
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = userService.findById(userDetails.getUserId());
+
+        // Reset failed login attempts on successful login
+        if (user.getFailedLoginAttempts() > 0) {
+            userService.resetFailedLoginAttempts(user);
+        }
+
+        // Create session
+        sessionService.createSession(user, rememberMe, httpRequest, httpResponse);
+
+        log.info("Successful login for user: {} (ID: {})", user.getEmail(), user.getId());
+
+        return new ApiResponse<>(
+                true,
+                mapToAuthResponse(user),
+                null,
+                "Login successful"
+        );
     }
 
     @Override
@@ -116,16 +150,16 @@ public class AuthServiceImpl implements AuthService {
         }
 
         try {
-            UserAccount userAccount = accountService.findByEmail(request.email());
+            User user = userService.findByEmail(request.email());
 
-            if (!userAccount.isAccountEnabled() || !userAccount.isEmailVerified()) {
+            if (!user.isAccountEnabled() || !user.isEmailVerified()) {
                 log.warn("Password reset requested for inactive account: {}", request.email());
                 // Return success to prevent email enumeration
                 return new ApiResponse<>(true, "If the email exists, a password reset link has been sent.");
             }
 
-            Token token = tokenService.createToken(userAccount.getId(), TokenType.PASSWORD_RESET);
-            log.info("Generated password reset token for user {}: {}", userAccount.getId(), token.getValue());
+            Token token = tokenService.createToken(user.getId(), TokenType.PASSWORD_RESET);
+            log.info("Generated password reset token for user {}: {}", user.getId(), token.getValue());
 
         } catch (UserNotFoundException e) {
             log.warn("Password reset requested for non-existent email: {}", request.email());
@@ -141,15 +175,15 @@ public class AuthServiceImpl implements AuthService {
         log.info("Password reset attempt with token: {}", tokenValue);
 
         Token token = tokenService.confirmToken(tokenValue, TokenType.PASSWORD_RESET);
-        UserAccount userAccount = token.getUserAccount();
+        User user = token.getUser();
 
         String encodedPassword = passwordEncoder.encode(newPassword);
-        userAccount.setPassword(encodedPassword);
-        userAccount.setCredentialsExpired(false);
+        user.setPassword(encodedPassword);
+        user.setCredentialsExpired(false);
 
-        accountService.save(userAccount);
+        userService.save(user);
 
-        log.info("Password reset successful for user ID: {}", userAccount.getId());
+        log.info("Password reset successful for user ID: {}", user.getId());
 
         return new ApiResponse<>(true, "Password reset successful. You can now log in with your new password.");
     }
@@ -163,59 +197,59 @@ public class AuthServiceImpl implements AuthService {
         return new ApiResponse<>(true, "Password reset token is valid");
     }
 
-    @Override
-    @Transactional
-    public ApiResponse<AuthResponse> handleSuccessfulLogin(
-            Authentication authentication,
-            boolean rememberMe,
-            HttpServletRequest httpRequest,
-            HttpServletResponse httpResponse) {
+    // Private helper methods
 
-        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        UserAccount userAccount = accountService.findById(userDetails.getUserId());
-
-        sessionService.createSession(userAccount, rememberMe, httpRequest, httpResponse);
-
-        log.info("Successful login for user: {}", userDetails.getUsername());
-
-        return new ApiResponse<>(
-                true,
-                mapToAuthResponse(userAccount),
-                null,
-                "Login successful"
-        );
-    }
-
-    private void publishAccountActivationEvent(UserAccount userAccount) {
-        eventPublisher.publishEvent(new UserAccountActivationEvent(userAccount.getId()));
-    }
-
-    private void publishRegistrationEvent(Long userProfileId) {
-        eventPublisher.publishEvent(new UserRegistrationEvent(userProfileId));
-    }
-
-    private RegistrationResponse mapToRegistrationResponse(UserProfile profile) {
-        return RegistrationResponse.builder()
-                .id(profile.getId())
-                .firstName(profile.getFirstName())
-                .lastName(profile.getLastName())
-                .email(profile.getUserAccount().getEmail())
-                .username(profile.getUserAccount().getUsername())
-                .organisation(profile.getOrganisation())
+    private User createUserFromRequest(RegistrationRequest request) {
+        return User.builder()
+                .username(request.username())
+                .email(request.email())
+                .password(passwordEncoder.encode(request.password()))
+                .role(UserRole.USER)
+                .accountEnabled(true)
+                .emailVerified(false)
+                .credentialsExpired(false)
+                .accountExpired(false)
+                .accountLocked(false)
+                .rememberMe(false)
+                .failedLoginAttempts(0)
+                .provider("local")
+                // Profile fields
+                .organisation(request.organisation())
+                .consent(request.terms())
+                .notification(request.marketing())
                 .build();
     }
 
-    private AuthResponse mapToAuthResponse(UserAccount userAccount) {
-        UserProfile profile = userAccount.getUserProfile();
+    private void publishAccountActivationEvent(User user) {
+        eventPublisher.publishEvent(new UserActivationEvent(user.getId()));
+    }
+
+    private void publishRegistrationEvent(Long userId) {
+        eventPublisher.publishEvent(new UserRegistrationEvent(userId));
+    }
+
+    private RegistrationResponse mapToRegistrationResponse(User user) {
+        return RegistrationResponse.builder()
+                .id(user.getId())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .email(user.getEmail())
+                .username(user.getUsername())
+                .organisation(user.getOrganisation())
+                .build();
+    }
+
+    private AuthResponse mapToAuthResponse(User user) {
         return AuthResponse.builder()
-                .userId(userAccount.getId())
-                .email(userAccount.getEmail())
-                .username(userAccount.getUsername())
-                .firstName(profile != null ? profile.getFirstName() : null)
-                .lastName(profile != null ? profile.getLastName() : null)
-                .role(userAccount.getRole().name())
-                .lastLogin(userAccount.getLastLogin())
-                .rememberMe(userAccount.isRememberMe())
+                .userId(user.getId())
+                .email(user.getEmail())
+                .username(user.getUsername())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .fullName(user.getFullName())
+                .role(user.getRole().name())
+                .lastLogin(user.getLastLogin())
+                .rememberMe(user.isRememberMe())
                 .build();
     }
 }

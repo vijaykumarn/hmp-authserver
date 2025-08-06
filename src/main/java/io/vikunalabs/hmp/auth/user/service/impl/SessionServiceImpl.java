@@ -1,8 +1,8 @@
-package io.vikunalabs.hmp.auth.user.service;
+package io.vikunalabs.hmp.auth.user.service.impl;
 
-import io.vikunalabs.hmp.auth.user.domain.UserAccount;
+import io.vikunalabs.hmp.auth.user.domain.User;
 import io.vikunalabs.hmp.auth.user.service.SessionService;
-import io.vikunalabs.hmp.auth.user.service.UserAccountService;
+import io.vikunalabs.hmp.auth.user.service.UserService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,7 +27,7 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class SessionServiceImpl implements SessionService {
 
-    private final UserAccountService userAccountService;
+    private final UserService userService;
 
     @Value("${app.session.timeout.default:3600}") // 1 hour default
     private int defaultSessionTimeout;
@@ -37,23 +37,23 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     @Transactional
-    public void createSession(UserAccount userAccount, Boolean rememberMe, 
-                            HttpServletRequest request, HttpServletResponse response) {
-        log.debug("Creating session for user: {}", userAccount.getEmail());
+    public void createSession(User user, Boolean rememberMe,
+                              HttpServletRequest request, HttpServletResponse response) {
+        log.debug("Creating session for user: {}", user.getEmail());
 
         // Update last login and remember-me preference
-        userAccount.setLastLogin(Instant.now());
-        userAccount.setRememberMe(rememberMe != null && rememberMe);
-        userAccountService.save(userAccount);
+        user.setLastLogin(Instant.now());
+        user.setRememberMe(rememberMe != null && rememberMe);
+        userService.save(user);
 
         // Create authentication token
         List<SimpleGrantedAuthority> authorities = List.of(
-            new SimpleGrantedAuthority("ROLE_" + userAccount.getRole().name())
+            new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
         );
         
         UsernamePasswordAuthenticationToken authentication = 
             new UsernamePasswordAuthenticationToken(
-                userAccount.getEmail(), 
+                user.getEmail(),
                 null, 
                 authorities
             );
@@ -66,8 +66,8 @@ public class SessionServiceImpl implements SessionService {
         // Create/configure session
         HttpSession session = request.getSession(true);
         session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, securityContext);
-        session.setAttribute("USER_ID", userAccount.getId());
-        session.setAttribute("USER_EMAIL", userAccount.getEmail());
+        session.setAttribute("USER_ID", user.getId());
+        session.setAttribute("USER_EMAIL", user.getEmail());
 
         // Set session timeout based on remember-me
         int sessionTimeout = (rememberMe != null && rememberMe) ? rememberMeSessionTimeout : defaultSessionTimeout;
@@ -77,7 +77,7 @@ public class SessionServiceImpl implements SessionService {
         configureCookie(response, session.getId(), sessionTimeout);
 
         log.info("Session created for user: {} with timeout: {} seconds", 
-                userAccount.getEmail(), sessionTimeout);
+                user.getEmail(), sessionTimeout);
     }
 
     @Override
@@ -99,10 +99,10 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     @Transactional
-    public void updateLastLogin(UserAccount userAccount) {
-        userAccount.setLastLogin(Instant.now());
-        userAccountService.save(userAccount);
-        log.debug("Updated last login for user: {}", userAccount.getEmail());
+    public void updateLastLogin(User user) {
+        user.setLastLogin(Instant.now());
+        userService.save(user);
+        log.debug("Updated last login for user: {}", user.getEmail());
     }
 
     private void configureCookie(HttpServletResponse response, String sessionId, int maxAge) {
