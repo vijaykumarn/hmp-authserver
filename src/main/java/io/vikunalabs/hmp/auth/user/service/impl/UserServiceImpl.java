@@ -140,4 +140,18 @@ public class UserServiceImpl implements UserService {
         return user.isAccountLocked() && 
                (user.getLockedUntil() == null || Instant.now().isBefore(user.getLockedUntil()));
     }
+
+    @Override
+    public User findByProviderAndProviderId(String provider, String providerId) {
+        return userRepository.findByProviderAndProviderId(provider, providerId)
+                .orElseThrow(() -> {
+                    log.warn("OAuth2 user not found with provider: {} and providerId: {}", provider, providerId);
+                    return UserNotFoundException.withUsernameAndEmail(provider, providerId);
+                });
+    }
+
+    @Override
+    public boolean existsByUsername(String username) {
+        return userRepository.existsByUsername(username);
+    }
 }

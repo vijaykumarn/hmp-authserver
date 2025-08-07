@@ -1,5 +1,88 @@
 # HMP Authorization Server
 
+## How to test google oauth integration
+
+## Next Steps to Test Phase 1 - Basic Google OAuth2 Login
+
+### 1. **Get Google OAuth2 Credentials**
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing one
+3. Enable the Google+ API (or Google Identity API)
+4. Go to "Credentials" → "Create Credentials" → "OAuth 2.0 Client IDs"
+5. Configure:
+    - **Application type**: Web application
+    - **Authorized redirect URIs**: `http://localhost:8080/login/oauth2/code/google`
+6. Copy the **Client ID** and **Client Secret**
+
+### 2. **Set Environment Variables**
+
+```bash
+export GOOGLE_CLIENT_ID="your-actual-google-client-id"
+export GOOGLE_CLIENT_SECRET="your-actual-google-client-secret"
+```
+
+Or add to your IDE run configuration.
+
+### 3. **Run Your Application**
+
+Start your Spring Boot app and verify logs show:
+- OAuth2 client registration loaded
+- No errors about missing OAuth2 configuration
+
+### 4. **Test the OAuth2 Flow**
+
+**Test 1: Get Authorization URL**
+```bash
+curl -X GET http://localhost:8080/api/auth/oauth2/authorization-url/google \
+  -H "Content-Type: application/json" \
+  --cookie-jar cookies.txt
+```
+
+**Test 2: Manual OAuth2 Flow**
+1. Open browser: `http://localhost:8080/oauth2/authorization/google`
+2. Should redirect to Google login
+3. After Google auth, should redirect back and create session
+4. Check database for new user and session records
+
+### 5. **Frontend Integration (Vite)**
+
+In your frontend, add a "Sign in with Google" button:
+
+```typescript
+// Get Google auth URL
+const response = await fetch('/api/auth/oauth2/authorization-url/google', {
+  credentials: 'include'
+});
+const data = await response.json();
+
+// Redirect to Google OAuth
+window.location.href = data.data.authorizationUrl;
+```
+
+### 6. **Verify Database Records**
+
+After successful OAuth2 login, check:
+
+```sql
+-- Check new OAuth2 user was created
+SELECT id, username, email, provider, provider_id, email_verified 
+FROM hmp.users 
+WHERE provider = 'google';
+
+-- Check session was created
+SELECT session_id, user_id, ip_address, remember_me, is_active 
+FROM hmp.user_sessions 
+WHERE is_active = true;
+```
+
+### 7. **Test Session Security**
+
+Verify your existing session security works for OAuth2 users:
+- Access protected endpoints with the session cookie
+- Test IP validation (if enabled)
+- Test concurrent session limits
+
 
 ---
 

@@ -25,4 +25,9 @@ public interface UserService {
     void resetFailedLoginAttempts(User user);
     
     boolean isAccountLocked(User user);
+
+    // New methods for OAuth2 support
+    User findByProviderAndProviderId(String provider, String providerId);
+
+    boolean existsByUsername(String username);
 }

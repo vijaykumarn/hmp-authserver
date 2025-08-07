@@ -1,5 +1,5 @@
 ### Variables
-@baseUrl = http://localhost:8080
+@baseUrl = http://localhost:8090
 @username = john.doe
 @email = john.doe@example.com
 @password = SecurePass123!
@@ -26,7 +26,7 @@ POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "{{email}}",
+  "login": "{{email}}",
   "password": "{{password}}",
   "rememberMe": false
 }
@@ -36,7 +36,7 @@ POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "{{email}}",
+  "login": "{{email}}",
   "password": "{{password}}",
   "rememberMe": true
 }
@@ -71,3 +71,49 @@ Content-Type: application/json
 {
   "email": "{{email}}"
 }
+
+### OAuth2 Tests
+
+### 10. Get Google Authorization URL
+GET {{baseUrl}}/api/auth/oauth2/authorization-url/google
+Content-Type: application/json
+
+### 11. Test OAuth2 Manual Flow (Open in Browser)
+# Visit this URL in browser to test the full OAuth2 flow
+# {{baseUrl}}/oauth2/authorization/google
+
+### 12. Test OAuth2 Error Handling - Invalid Provider
+GET {{baseUrl}}/oauth2/authorization/invalid-provider
+
+### 13. Test Session Info After OAuth2 Login
+GET {{baseUrl}}/api/session/info
+
+### 14. Test All Sessions After OAuth2 Login
+GET {{baseUrl}}/api/session/all
+
+### 15. Test OAuth2 User Can Access Protected Endpoint
+GET {{baseUrl}}/api/session/validate
+
+### 16. Test OAuth2 Rate Limiting (Run multiple times quickly)
+GET {{baseUrl}}/api/auth/oauth2/authorization-url/google
+
+### 17. Test CSRF Token Endpoint
+GET {{baseUrl}}/api/auth/csrf-token
+
+### 18. Test OAuth2 with Email Conflict
+# First register with email/password, then try OAuth2 with same email
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "username": "testuser",
+  "email": "test@gmail.com",
+  "password": "SecurePass123!",
+  "terms": true,
+  "marketing": false
+}
+
+### 19. Performance Test - Multiple OAuth2 Authorization Requests
+GET {{baseUrl}}/api/auth/oauth2/authorization-url/google
+GET {{baseUrl}}/api/auth/oauth2/authorization-url/google
+GET {{baseUrl}}/api/auth/oauth2/authorization-url/google
