@@ -2,7 +2,7 @@ package io.vikunalabs.hmp.auth.user.service;
 
 import io.vikunalabs.hmp.auth.user.domain.Token;
 import io.vikunalabs.hmp.auth.user.domain.TokenType;
-import io.vikunalabs.hmp.auth.user.domain.UserAccount;
+import io.vikunalabs.hmp.auth.user.domain.User;
 
 import java.util.UUID;
 
@@ -13,7 +13,7 @@ public interface TokenService {
 
     Token confirmToken(UUID tokenValue, TokenType tokenType);
 
-    void revokePendingTokens(UserAccount userAccount, TokenType tokenType);
+    void revokePendingTokens(User user, TokenType tokenType);
 
     boolean hasRecentTokenRequest(String email, TokenType tokenType, int minutes);
 

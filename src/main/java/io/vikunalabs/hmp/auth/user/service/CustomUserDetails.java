@@ -1,6 +1,6 @@
 package io.vikunalabs.hmp.auth.user.service;
 
-import io.vikunalabs.hmp.auth.user.domain.UserAccount;
+import io.vikunalabs.hmp.auth.user.domain.User;
 import io.vikunalabs.hmp.auth.user.domain.UserRole;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -12,32 +12,36 @@ import java.util.List;
 public class CustomUserDetails implements UserDetails {
 
     private final Long userId;
+    private final String email;
     private final String username;
     private final String password;
     private final UserRole role;
-    private final boolean accountEnabled;
-    private final boolean credentialsExpired;
-    private final boolean accountExpired;
-    private final boolean accountLocked;
+    private final User user;
 
-    CustomUserDetails(UserAccount userAccount) {
-        this.userId = userAccount.getId();
-        this.username = userAccount.getUsername();
-        this.password = userAccount.getPassword();
-        this.role = userAccount.getRole();
-        this.accountEnabled = userAccount.isAccountEnabled();
-        this.credentialsExpired = userAccount.isCredentialsExpired();
-        this.accountExpired = userAccount.isAccountExpired();
-        this.accountLocked = userAccount.isAccountLocked();
+    public CustomUserDetails(User user) {
+        this.userId = user.getId();
+        this.email = user.getEmail();
+        this.username = user.getUsername();
+        this.password = user.getPassword();
+        this.role = user.getRole();
+        this.user = user;
     }
 
     public Long getUserId() {
         return this.userId;
     }
+    
+    public String getEmail() {
+        return this.email;
+    }
+    
+    public String getUsernameOnly() {
+        return this.username;
+    }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority(role.name()));
+        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }
 
     @Override
@@ -47,26 +51,26 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public String getUsername() {
-        return this.username;
+        return this.email;
     }
 
     @Override
     public boolean isAccountNonExpired() {
-        return !this.accountExpired;
+        return user.isAccountNonExpired();
     }
 
     @Override
     public boolean isAccountNonLocked() {
-        return !this.accountLocked;
+        return user.isAccountNonLocked();
     }
 
     @Override
     public boolean isCredentialsNonExpired() {
-        return !this.credentialsExpired;
+        return user.isCredentialsNonExpired();
     }
 
     @Override
     public boolean isEnabled() {
-        return this.accountEnabled;
+        return user.isEnabled();
     }
 }

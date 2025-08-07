@@ -25,7 +25,7 @@ public class UserRegistrationEventListener {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleUserRegistrationEvent(UserRegistrationEvent event) {
-        Long userId = event.userProfileId();
+        Long userId = event.userId();
         log.info("Processing registration event for user {}", userId);
         Token token = tokenService.createToken(userId, TokenType.EMAIL_VERIFICATION);
         String confirmationLink = String.format("%s?token=%s", confirmationUrl, token.getValue());

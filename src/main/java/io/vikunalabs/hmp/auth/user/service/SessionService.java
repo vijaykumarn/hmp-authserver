@@ -1,14 +1,14 @@
 package io.vikunalabs.hmp.auth.user.service;
 
-import io.vikunalabs.hmp.auth.user.domain.UserAccount;
+import io.vikunalabs.hmp.auth.user.domain.User;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 public interface SessionService {
     
-    void createSession(UserAccount userAccount, Boolean rememberMe, HttpServletRequest request, HttpServletResponse response);
+    void createSession(User user, Boolean rememberMe, HttpServletRequest request, HttpServletResponse response);
     
     void invalidateSession(HttpServletRequest request, HttpServletResponse response);
     
-    void updateLastLogin(UserAccount userAccount);
+    void updateLastLogin(User user);
 }
