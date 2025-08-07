@@ -4,8 +4,10 @@ import io.vikunalabs.hmp.auth.shared.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -77,6 +79,7 @@ public class GlobalExceptionHandler {
             TooManyRequestsException.class
     })
     public ResponseEntity<ApiResponse<Object>> handleTooManyRequests(RuntimeException ex) {
+        log.warn("Rate limit exceeded: {}", ex.getMessage());
         ApiResponse<Object> response = new ApiResponse<>(false, "TOO_MANY_REQUESTS", ex.getMessage());
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response);
     }
@@ -91,6 +94,34 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Object>> handleUnauthorized(RuntimeException ex) {
         ApiResponse<Object> response = new ApiResponse<>(false, "UNAUTHORIZED", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(LockedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleLockedException(LockedException ex) {
+        log.warn("Account locked: {}", ex.getMessage());
+
+        ApiResponse<Void> response = new ApiResponse<>(
+                false,
+                null,
+                "ACCOUNT_LOCKED",
+                "Account is temporarily locked due to too many failed login attempts"
+        );
+
+        return ResponseEntity.status(HttpStatus.LOCKED).body(response);
+    }
+
+    @ExceptionHandler(AccountStatusException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccountStatusException(AccountStatusException ex) {
+        log.warn("Account status exception: {}", ex.getMessage());
+
+        ApiResponse<Void> response = new ApiResponse<>(
+                false,
+                null,
+                "ACCOUNT_STATUS_ERROR",
+                "Account access denied due to account status"
+        );
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

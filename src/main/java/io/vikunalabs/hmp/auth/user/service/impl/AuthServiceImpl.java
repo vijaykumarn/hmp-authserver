@@ -17,6 +17,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
+import org.springframework.security.authentication.event.AbstractAuthenticationFailureEvent;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -251,5 +253,21 @@ public class AuthServiceImpl implements AuthService {
                 .lastLogin(user.getLastLogin())
                 .rememberMe(user.isRememberMe())
                 .build();
+    }
+
+    // Add this method to handle authentication failures
+    @EventListener
+    public void handleAuthenticationFailure(AbstractAuthenticationFailureEvent event) {
+        String username = event.getAuthentication().getName();
+
+        try {
+            User user = userService.findByUsernameOrEmail(username);
+            userService.recordFailedLoginAttempt(user);
+            log.warn("Recorded failed login attempt for user: {} (Total attempts: {})",
+                    user.getEmail(), user.getFailedLoginAttempts());
+        } catch (UserNotFoundException e) {
+            log.debug("Failed login attempt for non-existent user: {}", username);
+            // Don't reveal that user doesn't exist
+        }
     }
 }

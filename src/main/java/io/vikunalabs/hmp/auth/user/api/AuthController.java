@@ -2,6 +2,8 @@ package io.vikunalabs.hmp.auth.user.api;
 
 import io.vikunalabs.hmp.auth.shared.ApiResponse;
 import io.vikunalabs.hmp.auth.shared.exception.InvalidTokenException;
+import io.vikunalabs.hmp.auth.shared.exception.TooManyRequestsException;
+import io.vikunalabs.hmp.auth.shared.security.RateLimitingService;
 import io.vikunalabs.hmp.auth.user.api.dto.*;
 import io.vikunalabs.hmp.auth.user.domain.TokenType;
 import io.vikunalabs.hmp.auth.user.service.AuthService;
@@ -16,19 +18,26 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000"}, allowCredentials = "")
+@CrossOrigin(
+        origins = {"http://localhost:5173", "http://localhost:3000"},
+        allowCredentials = "true",
+        maxAge = 3600
+)
 public class AuthController {
 
     private final AuthService authService;
-    private final AuthenticationManager  authenticationManager;
+    private final AuthenticationManager authenticationManager;
+    private final RateLimitingService rateLimitingService;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<RegistrationResponse>> registerUser(
@@ -50,30 +59,56 @@ public class AuthController {
 
     @PostMapping("/resend-verification")
     public ResponseEntity<ApiResponse<String>> resendVerification(
-            @Valid @RequestBody ResendVerificationRequest request) {
+            @Valid @RequestBody ResendVerificationRequest request,
+            HttpServletRequest httpRequest) {
+
+        String rateLimitKey = "resend-verification:" + request.email();
+
+        // ADDED: Rate limiting check
+        if (rateLimitingService.isRateLimited(rateLimitKey, 3, Duration.ofMinutes(5))) {
+            throw new TooManyRequestsException("Too many verification requests. Please try again later.");
+        }
+
         log.info("Resend verification attempt for email: {}", request.email());
         ApiResponse<String> response = authService.resendVerificationCode(request);
         return ResponseEntity.accepted().body(response);
     }
+
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
+
+        String clientIp = getClientIP(httpRequest);
+        String rateLimitKey = "login:" + clientIp;
+
+        // ADDED: Rate limiting check
+        if (rateLimitingService.isRateLimited(rateLimitKey, 5, Duration.ofMinutes(15))) {
+            throw new TooManyRequestsException("Too many login attempts. Please try again later.");
+        }
+
         log.info("Login attempt for email: {}", request.login());
 
-        // Use Spring Security's AuthenticationManager
-        Authentication authenticationRequest = UsernamePasswordAuthenticationToken
-                .unauthenticated(request.login(), request.password());
+        try {
+            Authentication authenticationRequest = UsernamePasswordAuthenticationToken
+                    .unauthenticated(request.login(), request.password());
 
-        Authentication authenticationResponse = authenticationManager.authenticate(authenticationRequest);
+            Authentication authenticationResponse = authenticationManager.authenticate(authenticationRequest);
 
-        // Handle successful authentication
-        ApiResponse<AuthResponse> response = authService.handleSuccessfulLogin(
-                authenticationResponse, request.rememberMe(), httpRequest, httpResponse);
+            // ADDED: Clear rate limit on successful login
+            rateLimitingService.clearRateLimit(rateLimitKey);
 
-        return ResponseEntity.ok(response);
+            ApiResponse<AuthResponse> response = authService.handleSuccessfulLogin(
+                    authenticationResponse, request.rememberMe(), httpRequest, httpResponse);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            // Don't clear rate limit on failed attempts
+            throw e;
+        }
     }
 
     @PostMapping("/logout")
@@ -87,7 +122,16 @@ public class AuthController {
 
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<String>> forgotPassword(
-            @Valid @RequestBody ForgotPasswordRequest request) {
+            @Valid @RequestBody ForgotPasswordRequest request,
+            HttpServletRequest httpRequest) {
+
+        String rateLimitKey = "forgot-password:" + request.email();
+
+        // ADDED: Rate limiting check
+        if (rateLimitingService.isRateLimited(rateLimitKey, 3, Duration.ofMinutes(5))) {
+            throw new TooManyRequestsException("Too many password reset requests. Please try again later.");
+        }
+
         log.info("Forgot password attempt for email: {}", request.email());
         ApiResponse<String> response = authService.forgotPassword(request);
         return ResponseEntity.accepted().body(response);
@@ -109,6 +153,18 @@ public class AuthController {
         UUID token = parseToken(tokenValue);
         ApiResponse<String> response = authService.confirmPasswordToken(token);
         return ResponseEntity.ok(response);
+    }
+
+    private String getClientIP(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (StringUtils.hasText(xForwardedFor)) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        String xRealIp = request.getHeader("X-Real-IP");
+        if (StringUtils.hasText(xRealIp)) {
+            return xRealIp;
+        }
+        return request.getRemoteAddr();
     }
 
     private UUID parseToken(String tokenValue) {

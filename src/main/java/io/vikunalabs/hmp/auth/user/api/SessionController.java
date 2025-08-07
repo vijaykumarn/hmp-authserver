@@ -5,6 +5,7 @@ import io.vikunalabs.hmp.auth.user.domain.SessionInfo;
 import io.vikunalabs.hmp.auth.user.service.CustomUserDetails;
 import io.vikunalabs.hmp.auth.user.service.SessionService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -42,9 +43,16 @@ public class SessionController {
 
     @PostMapping("/invalidate-all")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<String>> invalidateAllSessions(Authentication authentication) {
+    public ResponseEntity<ApiResponse<String>> invalidateAllSessions(
+            Authentication authentication,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         sessionService.invalidateAllUserSessions(userDetails.getUserId());
+
+        // Invalidate current session as well
+        sessionService.invalidateSession(request, response);
 
         return ResponseEntity.ok(new ApiResponse<>(true,
                 "All sessions have been invalidated. Please log in again."));

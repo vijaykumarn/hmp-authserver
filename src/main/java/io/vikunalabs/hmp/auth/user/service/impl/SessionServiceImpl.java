@@ -1,10 +1,12 @@
 package io.vikunalabs.hmp.auth.user.service.impl;
 
+import io.vikunalabs.hmp.auth.shared.config.SessionProperties;
 import io.vikunalabs.hmp.auth.user.domain.LogoutReason;
 import io.vikunalabs.hmp.auth.user.domain.SessionInfo;
 import io.vikunalabs.hmp.auth.user.domain.User;
 import io.vikunalabs.hmp.auth.user.domain.UserSession;
 import io.vikunalabs.hmp.auth.user.repository.UserSessionRepository;
+import io.vikunalabs.hmp.auth.user.service.CustomUserDetails;
 import io.vikunalabs.hmp.auth.user.service.SessionService;
 import io.vikunalabs.hmp.auth.user.service.UserService;
 import jakarta.servlet.http.Cookie;
@@ -18,6 +20,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.session.SessionInformation;
+import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,21 +42,8 @@ public class SessionServiceImpl implements SessionService {
 
     private final UserService userService;
     private final UserSessionRepository sessionRepository;
-
-    @Value("${app.session.timeout.default:3600}")
-    private int defaultSessionTimeout;
-
-    @Value("${app.session.timeout.remember-me:2592000}")
-    private int rememberMeSessionTimeout;
-
-    @Value("${app.session.max-concurrent:3}")
-    private int maxConcurrentSessions;
-
-    @Value("${app.session.require-same-ip:true}")
-    private boolean requireSameIp;
-
-    @Value("${app.session.detect-user-agent-change:true}")
-    private boolean detectUserAgentChange;
+    private final SessionRegistry sessionRegistry;
+    private final SessionProperties sessionProperties;
 
     @Override
     @Transactional
@@ -63,7 +54,6 @@ public class SessionServiceImpl implements SessionService {
         // Prevent session fixation - invalidate existing session
         HttpSession oldSession = request.getSession(false);
         if (oldSession != null) {
-            // Mark old session as invalid in database
             markSessionInactive(oldSession.getId(), LogoutReason.SECURITY_VIOLATION);
             oldSession.invalidate();
             log.debug("Invalidated old session to prevent session fixation");
@@ -80,21 +70,19 @@ public class SessionServiceImpl implements SessionService {
         String userAgent = getUserAgent(request);
         String userAgentHash = hashUserAgent(userAgent);
 
-        // Update user login information
+        // Update user login information - FIXED: Proper transaction handling
         user.setLastLogin(Instant.now());
         user.setRememberMe(rememberMe != null && rememberMe);
-        userService.save(user);
+        User savedUser = userService.save(user); // Ensure save is called
 
-        // Create authentication
-        List<SimpleGrantedAuthority> authorities = List.of(
-                new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
-        );
+        // FIXED: Create authentication with CustomUserDetails as principal
+        CustomUserDetails customUserDetails = new CustomUserDetails(savedUser);
 
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(
-                        user.getEmail(),
+                        customUserDetails, // Use CustomUserDetails instead of email string
                         null,
-                        authorities
+                        customUserDetails.getAuthorities()
                 );
 
         // Set up security context
@@ -104,21 +92,23 @@ public class SessionServiceImpl implements SessionService {
 
         // Configure session attributes
         session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, securityContext);
-        session.setAttribute("USER_ID", user.getId());
-        session.setAttribute("USER_EMAIL", user.getEmail());
+        session.setAttribute("USER_ID", savedUser.getId());
+        session.setAttribute("USER_EMAIL", savedUser.getEmail());
         session.setAttribute("CLIENT_IP", clientIp);
         session.setAttribute("USER_AGENT_HASH", userAgentHash);
         session.setAttribute("CREATED_AT", Instant.now().toString());
         session.setAttribute("REMEMBER_ME", rememberMe);
 
         // Set session timeout
-        int sessionTimeout = (rememberMe != null && rememberMe) ? rememberMeSessionTimeout : defaultSessionTimeout;
+        int sessionTimeout = (rememberMe != null && rememberMe)
+                ? sessionProperties.getTimeout().getRememberMeSeconds()
+                : sessionProperties.getTimeout().getDefaultSeconds();
         session.setMaxInactiveInterval(sessionTimeout);
 
         // Store session in database
         UserSession userSession = UserSession.builder()
                 .sessionId(session.getId())
-                .user(user)
+                .user(savedUser)
                 .ipAddress(clientIp)
                 .userAgentHash(userAgentHash)
                 .lastAccessedAt(Instant.now())
@@ -132,8 +122,11 @@ public class SessionServiceImpl implements SessionService {
         // Configure secure cookie
         configureSecureSessionCookie(response, session.getId(), sessionTimeout);
 
+        // FIXED: Register session with Spring's SessionRegistry - YES, this is correctly placed
+        registerSessionWithRegistry(savedUser, session.getId());
+
         log.info("Secure session created for user: {} (IP: {}) with timeout: {} seconds",
-                user.getEmail(), clientIp, sessionTimeout);
+                savedUser.getEmail(), clientIp, sessionTimeout);
     }
 
     @Override
@@ -164,8 +157,9 @@ public class SessionServiceImpl implements SessionService {
                 return false;
             }
 
+            // FIXED: Use sessionProperties instead of missing fields
             // Validate IP address if required
-            if (requireSameIp) {
+            if (sessionProperties.isRequireSameIp()) {
                 String currentIp = getClientIP(request);
                 if (!userSession.getIpAddress().equals(currentIp)) {
                     log.warn("IP address mismatch for session: {} (stored: {}, current: {})",
@@ -175,8 +169,9 @@ public class SessionServiceImpl implements SessionService {
                 }
             }
 
+            // FIXED: Use sessionProperties instead of missing fields
             // Validate User-Agent if required
-            if (detectUserAgentChange) {
+            if (sessionProperties.isDetectUserAgentChange()) {
                 String currentUserAgentHash = hashUserAgent(getUserAgent(request));
                 if (!userSession.getUserAgentHash().equals(currentUserAgentHash)) {
                     log.warn("User-Agent change detected for session: {}", session.getId());
@@ -203,11 +198,17 @@ public class SessionServiceImpl implements SessionService {
         HttpSession session = request.getSession(false);
         if (session != null) {
             String sessionId = session.getId();
-
             log.debug("Invalidating session: {}", sessionId);
 
             // Mark session as inactive in database
             markSessionInactive(sessionId, LogoutReason.USER_LOGOUT);
+
+            // FIXED: Remove from session registry
+            SessionInformation sessionInfo = sessionRegistry.getSessionInformation(sessionId);
+            if (sessionInfo != null) {
+                sessionInfo.expireNow();
+                sessionRegistry.removeSessionInformation(sessionId);
+            }
 
             // Invalidate HTTP session
             session.invalidate();
@@ -229,9 +230,27 @@ public class SessionServiceImpl implements SessionService {
     public void invalidateAllUserSessions(Long userId) {
         log.info("Invalidating all sessions for user: {}", userId);
 
-        int invalidatedCount = sessionRepository.invalidateAllUserSessions(userId, LogoutReason.ADMIN_REVOKE);
+        // Get all active sessions for user from database
+        List<UserSession> userSessions = sessionRepository.findActiveSessionsByUserId(userId);
 
+        // Remove from session registry and invalidate
+        for (UserSession userSession : userSessions) {
+            SessionInformation sessionInfo = sessionRegistry.getSessionInformation(userSession.getSessionId());
+            if (sessionInfo != null) {
+                sessionInfo.expireNow();
+                sessionRegistry.removeSessionInformation(userSession.getSessionId());
+            }
+        }
+
+        // Mark as inactive in database
+        int invalidatedCount = sessionRepository.invalidateAllUserSessions(userId, LogoutReason.ADMIN_REVOKE);
         log.info("Invalidated {} sessions for user: {}", invalidatedCount, userId);
+    }
+
+    // FIXED: Register session with Spring's SessionRegistry
+    private void registerSessionWithRegistry(User user, String sessionId) {
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+        sessionRegistry.registerNewSession(sessionId, userDetails);
     }
 
     @Override
@@ -288,13 +307,15 @@ public class SessionServiceImpl implements SessionService {
     @Transactional
     protected void enforceConcurrentSessionLimit(Long userId) {
         long activeSessionCount = sessionRepository.countActiveSessionsByUserId(userId);
+        int maxSessions = sessionProperties.getMaxConcurrent();
 
-        if (activeSessionCount >= maxConcurrentSessions) {
+        if (activeSessionCount >= maxSessions) {
             // Get oldest sessions and invalidate them
             List<UserSession> sessions = sessionRepository
                     .findActiveSessionsByUserIdOrderByCreatedAsc(userId);
 
-            int sessionsToInvalidate = (int) (activeSessionCount - maxConcurrentSessions + 1);
+            // FIXED: Use maxSessions instead of undefined maxConcurrentSessions
+            int sessionsToInvalidate = (int) (activeSessionCount - maxSessions + 1);
 
             for (int i = 0; i < sessionsToInvalidate && i < sessions.size(); i++) {
                 UserSession oldSession = sessions.get(i);
@@ -390,4 +411,3 @@ public class SessionServiceImpl implements SessionService {
         response.addCookie(sessionCookie);
     }
 }
-
