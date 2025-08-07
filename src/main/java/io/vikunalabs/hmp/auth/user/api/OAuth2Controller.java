@@ -1,12 +1,14 @@
 package io.vikunalabs.hmp.auth.user.api;
 
 import io.vikunalabs.hmp.auth.shared.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -20,16 +22,20 @@ import java.util.Map;
 public class OAuth2Controller {
 
     @GetMapping("/authorization-url/google")
-    public ResponseEntity<ApiResponse<Map<String, String>>> getGoogleAuthorizationUrl() {
+    public ResponseEntity<ApiResponse<Map<String, String>>> getGoogleAuthorizationUrl(
+            HttpServletRequest request) {
         log.info("Generating Google OAuth2 authorization URL");
-        
-        String authorizationUrl = "/oauth2/authorization/google";
-        
+
+        // Build the full authorization URL
+        String baseUrl = request.getRequestURL().toString().replace(request.getRequestURI(), "");
+        String authorizationUrl = baseUrl + "/oauth2/authorization/google";
+
         Map<String, String> response = Map.of(
                 "authorizationUrl", authorizationUrl,
-                "provider", "google"
+                "provider", "google",
+                "state", UUID.randomUUID().toString()
         );
-        
+
         return ResponseEntity.ok(new ApiResponse<>(true, response));
     }
 }
