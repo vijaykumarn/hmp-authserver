@@ -1,5 +1,8 @@
 package io.vikunalabs.hmp.auth.shared.security;
 
+import io.vikunalabs.hmp.auth.oauth2.CustomOAuth2UserService;
+import io.vikunalabs.hmp.auth.oauth2.OAuth2AuthenticationFailureHandler;
+import io.vikunalabs.hmp.auth.oauth2.OAuth2AuthenticationSuccessHandler;
 import io.vikunalabs.hmp.auth.user.service.CustomUserDetailsService;
 import io.vikunalabs.hmp.auth.user.service.SessionService;
 import lombok.RequiredArgsConstructor;
@@ -17,8 +20,11 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.web.AuthorizationRequestRepository;
+import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -31,6 +37,13 @@ public class AppSecurityConfig {
     private final CustomUserDetailsService customUserDetailsService; // ADDED
     private final PasswordEncoder passwordEncoder;
     private final SessionRegistry sessionRegistry;
+
+    // OAuth2 and Security components
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2AuthenticationSuccessHandler oauth2SuccessHandler;
+    private final OAuth2AuthenticationFailureHandler oauth2FailureHandler;
+    private final CsrfTokenRepository csrfTokenRepository;
+    private final AuthorizationRequestRepository<OAuth2AuthorizationRequest> authorizationRequestRepository;
 
     @Bean
     AuthenticationManager authenticationManager(
@@ -49,18 +62,35 @@ public class AppSecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-                .authenticationProvider(authenticationProvider()) // ADDED
+                .authenticationProvider(authenticationProvider())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**", "/error", "/public/**").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
+
+                // OAuth2 Login Configuration with Security
+                .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(authorization -> authorization
+                                .authorizationRequestRepository(authorizationRequestRepository))
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(customOAuth2UserService))
+                        .successHandler(oauth2SuccessHandler)
+                        .failureHandler(oauth2FailureHandler))
+
+                // CSRF Protection
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(csrfTokenRepository)
+                        .ignoringRequestMatchers("/api/auth/register", "/api/auth/login",
+                                "/api/auth/logout", "/api/auth/forgot-password",
+                                "/api/auth/reset-password", "/api/auth/confirm-account",
+                                "/api/auth/resend-verification", "/api/auth/confirm-password-token"))
+
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                                 .maximumSessions(3)
                                 .maxSessionsPreventsLogin(false)
                                 .sessionRegistry(sessionRegistry))
-                .csrf(AbstractHttpConfigurer::disable)
                 .addFilterAfter(sessionSecurityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

@@ -8,6 +8,7 @@ import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -122,6 +123,59 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
+    @ExceptionHandler({
+            OAuth2EmailConflictException.class,
+            OAuth2ProviderException.class,
+            OAuth2UserDataException.class
+    })
+    public ResponseEntity<ApiResponse<Object>> handleOAuth2Exceptions(RuntimeException ex) {
+        log.warn("OAuth2 error: {}", ex.getMessage());
+
+        String errorCode = determineOAuth2ErrorCode(ex);
+        ApiResponse<Object> response = new ApiResponse<>(false, errorCode, ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(OAuth2AuthenticationException.class)
+    public ResponseEntity<ApiResponse<Object>> handleOAuth2AuthenticationException(OAuth2AuthenticationException ex) {
+        log.warn("OAuth2 authentication failed: {} - {}",
+                ex.getError().getErrorCode(), ex.getError().getDescription());
+
+        String userFriendlyMessage = getUserFriendlyOAuth2Message(ex);
+
+        ApiResponse<Object> response = new ApiResponse<>(
+                false,
+                "OAUTH2_" + ex.getError().getErrorCode().toUpperCase(),
+                userFriendlyMessage
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    private String determineOAuth2ErrorCode(RuntimeException ex) {
+        if (ex instanceof OAuth2EmailConflictException) {
+            return "OAUTH2_EMAIL_CONFLICT";
+        } else if (ex instanceof OAuth2ProviderException) {
+            return "OAUTH2_PROVIDER_ERROR";
+        } else if (ex instanceof OAuth2UserDataException) {
+            return "OAUTH2_USER_DATA_ERROR";
+        }
+        return "OAUTH2_ERROR";
+    }
+
+    private String getUserFriendlyOAuth2Message(OAuth2AuthenticationException ex) {
+        String errorCode = ex.getError().getErrorCode();
+
+        return switch (errorCode) {
+            case "access_denied" -> "You cancelled the sign-in process. Please try again if you want to continue.";
+            case "invalid_request" -> "There was an issue with the sign-in request. Please try again.";
+            case "server_error" -> "Google's servers are experiencing issues. Please try again in a few minutes.";
+            case "temporarily_unavailable" -> "Google's sign-in service is temporarily unavailable. Please try again later.";
+            case "invalid_scope" -> "The requested permissions are not available. Please contact support.";
+            default -> "Sign-in with Google failed. Please try again or use email/password login.";
+        };
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
