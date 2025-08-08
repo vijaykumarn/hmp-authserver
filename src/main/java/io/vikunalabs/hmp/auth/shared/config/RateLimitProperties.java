@@ -13,7 +13,7 @@ public class RateLimitProperties {
     private RateLimit login = new RateLimit(5, 15);
     private RateLimit resendVerification = new RateLimit(3, 5);
     private RateLimit forgotPassword = new RateLimit(3, 5);
-    
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor

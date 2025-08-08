@@ -9,15 +9,14 @@ import io.vikunalabs.hmp.auth.user.domain.User;
 import io.vikunalabs.hmp.auth.user.repository.TokenRepository;
 import io.vikunalabs.hmp.auth.user.service.TokenService;
 import io.vikunalabs.hmp.auth.user.service.UserService;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -30,7 +29,8 @@ public class TokenServiceImpl implements TokenService {
 
     @Override
     public Token findValidToken(UUID tokenValue, TokenType tokenType) {
-        Token token = tokenRepository.findByValue(tokenValue)
+        Token token = tokenRepository
+                .findByValue(tokenValue)
                 .filter(t -> t.getTokenType() == tokenType)
                 .orElseThrow(() -> {
                     log.warn("Token not found: {}", tokenValue);
@@ -65,8 +65,7 @@ public class TokenServiceImpl implements TokenService {
         Token token = new Token(user, tokenType, expiresAt);
 
         Token savedToken = tokenRepository.save(token);
-        log.info("Created {} token for user ID: {} with expiry: {}",
-                tokenType, userId, expiresAt);
+        log.info("Created {} token for user ID: {} with expiry: {}", tokenType, userId, expiresAt);
 
         return savedToken;
     }
@@ -80,7 +79,8 @@ public class TokenServiceImpl implements TokenService {
         token.confirm();
 
         Token confirmedToken = tokenRepository.save(token);
-        log.info("Confirmed {} token for user ID: {}", tokenType, token.getUser().getId());
+        log.info(
+                "Confirmed {} token for user ID: {}", tokenType, token.getUser().getId());
 
         return confirmedToken;
     }
@@ -88,12 +88,11 @@ public class TokenServiceImpl implements TokenService {
     @Override
     @Transactional
     public void revokePendingTokens(User user, TokenType tokenType) {
-        List<Token> pendingTokens = tokenRepository
-                .findByUserAndTokenTypeAndStatus(user, tokenType, TokenStatus.PENDING);
+        List<Token> pendingTokens =
+                tokenRepository.findByUserAndTokenTypeAndStatus(user, tokenType, TokenStatus.PENDING);
 
         if (!pendingTokens.isEmpty()) {
-            log.debug("Revoking {} pending {} tokens for user ID: {}",
-                    pendingTokens.size(), tokenType, user.getId());
+            log.debug("Revoking {} pending {} tokens for user ID: {}", pendingTokens.size(), tokenType, user.getId());
             pendingTokens.forEach(Token::revoke);
             tokenRepository.saveAll(pendingTokens);
         }
@@ -104,8 +103,7 @@ public class TokenServiceImpl implements TokenService {
         Instant since = Instant.now().minus(minutes, ChronoUnit.MINUTES);
         long count = tokenRepository.countRecentTokensByEmailAndType(email, tokenType, since);
 
-        log.debug("Found {} recent {} token requests for email: {} since: {}",
-                count, tokenType, email, since);
+        log.debug("Found {} recent {} token requests for email: {} since: {}", count, tokenType, email, since);
 
         return count > 0;
     }

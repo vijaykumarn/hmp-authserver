@@ -1,7 +1,6 @@
 package io.vikunalabs.hmp.auth.user.job;
 
 import io.vikunalabs.hmp.auth.user.service.TokenService;
-import io.vikunalabs.hmp.auth.user.service.impl.TokenServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

@@ -14,6 +14,7 @@ import io.vikunalabs.hmp.auth.user.events.UserRegistrationEvent;
 import io.vikunalabs.hmp.auth.user.service.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,8 +24,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -41,8 +40,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public ApiResponse<RegistrationResponse> register(RegistrationRequest request) {
-        log.debug("Attempting to register user with username: {} and email: {}",
-                request.username(), request.email());
+        log.debug("Attempting to register user with username: {} and email: {}", request.username(), request.email());
 
         // Validate unique username and email
         userService.validateUniqueUsernameAndEmail(request.username(), request.email());
@@ -54,15 +52,13 @@ public class AuthServiceImpl implements AuthService {
         // Publish registration event for email verification
         publishRegistrationEvent(savedUser.getId());
 
-        log.info("Successfully registered user with ID: {} and email: {}",
-                savedUser.getId(), savedUser.getEmail());
+        log.info("Successfully registered user with ID: {} and email: {}", savedUser.getId(), savedUser.getEmail());
 
         return new ApiResponse<>(
                 true,
                 mapToRegistrationResponse(savedUser),
                 null,
-                "Registration successful! Please check your email to verify your account."
-        );
+                "Registration successful! Please check your email to verify your account.");
     }
 
     @Override
@@ -73,8 +69,7 @@ public class AuthServiceImpl implements AuthService {
         Token token = tokenService.confirmToken(tokenValue, tokenType);
         User user = userService.enableUser(token.getUser().getId());
 
-        log.info("Successfully activated account for user ID: {} with email: {}",
-                user.getId(), user.getEmail());
+        log.info("Successfully activated account for user ID: {} with email: {}", user.getId(), user.getEmail());
 
         publishAccountActivationEvent(user);
 
@@ -125,12 +120,7 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("Successful login for user: {} (ID: {})", user.getEmail(), user.getId());
 
-        return new ApiResponse<>(
-                true,
-                mapToAuthResponse(user),
-                null,
-                "Login successful"
-        );
+        return new ApiResponse<>(true, mapToAuthResponse(user), null, "Login successful");
     }
 
     @Override
@@ -263,8 +253,10 @@ public class AuthServiceImpl implements AuthService {
         try {
             User user = userService.findByUsernameOrEmail(username);
             userService.recordFailedLoginAttempt(user);
-            log.warn("Recorded failed login attempt for user: {} (Total attempts: {})",
-                    user.getEmail(), user.getFailedLoginAttempts());
+            log.warn(
+                    "Recorded failed login attempt for user: {} (Total attempts: {})",
+                    user.getEmail(),
+                    user.getFailedLoginAttempts());
         } catch (UserNotFoundException e) {
             log.debug("Failed login attempt for non-existent user: {}", username);
             // Don't reveal that user doesn't exist

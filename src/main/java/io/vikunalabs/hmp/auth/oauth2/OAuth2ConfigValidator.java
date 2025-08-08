@@ -46,7 +46,8 @@ public class OAuth2ConfigValidator {
 
     private void validateGoogleCredentials() {
         String clientId = environment.getProperty("spring.security.oauth2.client.registration.google.client-id");
-        String clientSecret = environment.getProperty("spring.security.oauth2.client.registration.google.client-secret");
+        String clientSecret =
+                environment.getProperty("spring.security.oauth2.client.registration.google.client-secret");
 
         if (!StringUtils.hasText(clientId) || "your-google-client-id".equals(clientId)) {
             log.error("Google OAuth2 client-id is not configured! Set GOOGLE_CLIENT_ID environment variable.");
@@ -83,11 +84,11 @@ public class OAuth2ConfigValidator {
 
     private void validateRateLimitConfig() {
         OAuth2ConfigProperties.RateLimit rateLimit = oauth2Config.getRateLimit();
-        
+
         if (rateLimit.getMaxAttemptsPerIp() <= 0) {
             throw new IllegalStateException("OAuth2 max attempts per IP must be positive");
         }
-        
+
         if (rateLimit.getMaxAttemptsPerEmail() <= 0) {
             throw new IllegalStateException("OAuth2 max attempts per email must be positive");
         }
@@ -96,65 +97,71 @@ public class OAuth2ConfigValidator {
             throw new IllegalStateException("OAuth2 rate limit window must be positive");
         }
 
-        log.info("✓ OAuth2 rate limiting configured: {}/{} attempts per IP/email in {}/{} minutes",
-                rateLimit.getMaxAttemptsPerIp(), rateLimit.getMaxAttemptsPerEmail(),
-                rateLimit.getWindowMinutes(), rateLimit.getEmailWindowMinutes());
+        log.info(
+                "✓ OAuth2 rate limiting configured: {}/{} attempts per IP/email in {}/{} minutes",
+                rateLimit.getMaxAttemptsPerIp(),
+                rateLimit.getMaxAttemptsPerEmail(),
+                rateLimit.getWindowMinutes(),
+                rateLimit.getEmailWindowMinutes());
     }
 
     private void validateSecurityConfig() {
         OAuth2ConfigProperties.Security security = oauth2Config.getSecurity();
-        
+
         if (security.getSessionTimeoutSeconds() <= 0) {
             throw new IllegalStateException("OAuth2 session timeout must be positive");
         }
-        
+
         if (security.getMaxConcurrentSessions() <= 0) {
             throw new IllegalStateException("OAuth2 max concurrent sessions must be positive");
         }
 
-        log.info("✓ OAuth2 security configured: CSRF={}, StateValidation={}, AuditLogging={}", 
-                security.isCsrfEnabled(), security.isStateValidationEnabled(), security.isAuditLoggingEnabled());
+        log.info(
+                "✓ OAuth2 security configured: CSRF={}, StateValidation={}, AuditLogging={}",
+                security.isCsrfEnabled(),
+                security.isStateValidationEnabled(),
+                security.isAuditLoggingEnabled());
     }
 
     private void logConfigurationSummary() {
         String activeProfile = environment.getProperty("spring.profiles.active", "default");
-        
+
         log.info("=== OAuth2 Configuration Summary ===");
         log.info("Environment: {}", activeProfile);
         log.info("Enabled: {}", oauth2Config.isEnabled());
         log.info("Allowed Providers: {}", oauth2Config.getAllowedProviders());
         log.info("CSRF Protection: {}", oauth2Config.getSecurity().isCsrfEnabled());
         log.info("Audit Logging: {}", oauth2Config.getSecurity().isAuditLoggingEnabled());
-        
+
         if ("production".equals(activeProfile)) {
             validateProductionSettings();
         }
-        
+
         log.info("=====================================");
     }
 
     private void validateProductionSettings() {
         log.info("Validating production-specific settings...");
-        
+
         // Check if HTTPS is configured
         String serverPort = environment.getProperty("server.port", "8080");
         String redirectUri = environment.getProperty("spring.security.oauth2.client.registration.google.redirect-uri");
-        
+
         if (redirectUri != null && !redirectUri.startsWith("https://")) {
             log.warn("⚠️  Production OAuth2 redirect URI should use HTTPS: {}", redirectUri);
         }
-        
+
         // Check secure cookie settings
         String cookieSecure = environment.getProperty("server.servlet.session.cookie.secure");
         if (!"true".equals(cookieSecure)) {
             log.warn("⚠️  Production should set server.servlet.session.cookie.secure=true");
         }
-        
+
         String sameSite = environment.getProperty("server.servlet.session.cookie.same-site");
         if (!"strict".equalsIgnoreCase(sameSite)) {
             log.warn("⚠️  Production should set server.servlet.session.cookie.same-site=strict");
         }
-        
+
         log.info("✓ Production settings validation completed");
     }
 }

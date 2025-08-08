@@ -15,6 +15,7 @@ public class UserNotFoundException extends AuthException {
     }
 
     public static UserNotFoundException withUsernameAndEmail(String username, String email) {
-        return new UserNotFoundException("User profile with username or email: " + (username.isBlank() ? email : username) + " not found");
+        return new UserNotFoundException(
+                "User profile with username or email: " + (username.isBlank() ? email : username) + " not found");
     }
 }

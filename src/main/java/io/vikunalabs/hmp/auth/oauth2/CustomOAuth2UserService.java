@@ -4,6 +4,8 @@ import io.vikunalabs.hmp.auth.shared.exception.*;
 import io.vikunalabs.hmp.auth.user.domain.User;
 import io.vikunalabs.hmp.auth.user.domain.UserRole;
 import io.vikunalabs.hmp.auth.user.service.UserService;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
@@ -16,9 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-
-import jakarta.servlet.http.HttpServletRequest;
-import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -67,8 +66,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             }
         } catch (TooManyRequestsException e) {
             auditService.logOAuth2RateLimit("oauth2_attempt", clientIp, clientIp);
-            throw new OAuth2AuthenticationException(
-                    new OAuth2Error("rate_limit_exceeded", e.getMessage(), null));
+            throw new OAuth2AuthenticationException(new OAuth2Error("rate_limit_exceeded", e.getMessage(), null));
         }
 
         auditService.logOAuth2Attempt(registrationId, email, clientIp, userAgent);
@@ -90,8 +88,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         } catch (OAuth2EmailConflictException | OAuth2UserDataException | OAuth2ProviderException e) {
             log.error("OAuth2 processing error: {}", e.getMessage(), e);
             auditService.logOAuth2Failure(registrationId, email, e.getClass().getSimpleName(), clientIp, userAgent);
-            throw new OAuth2AuthenticationException(
-                    new OAuth2Error("user_processing_error", e.getMessage(), null));
+            throw new OAuth2AuthenticationException(new OAuth2Error("user_processing_error", e.getMessage(), null));
         } catch (Exception e) {
             log.error("Unexpected error processing OAuth2 user", e);
             auditService.logOAuth2Failure(registrationId, email, "internal_error", clientIp, userAgent);
@@ -102,7 +99,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private HttpServletRequest getCurrentRequest() {
         try {
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+            ServletRequestAttributes attributes =
+                    (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
             return attributes.getRequest();
         } catch (Exception e) {
             return null;
@@ -160,8 +158,9 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             User existingEmailUser = userService.findByEmail(email);
             log.error("Email {} already exists with provider: {}", email, existingEmailUser.getProvider());
 
-            String existingProvider = "local".equals(existingEmailUser.getProvider()) ?
-                    "email/password" : existingEmailUser.getProvider();
+            String existingProvider = "local".equals(existingEmailUser.getProvider())
+                    ? "email/password"
+                    : existingEmailUser.getProvider();
             throw OAuth2EmailConflictException.withEmail(email, existingProvider);
         } catch (UserNotFoundException e) {
             log.error("Email not found, proceeding with user creation");
@@ -184,11 +183,9 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         return StringUtils.hasText(email) && email.contains("@") && email.contains(".");
     }
 
-    private User createOAuth2User(String email, String firstName, String lastName,
-                                  String provider, String providerId) {
+    private User createOAuth2User(String email, String firstName, String lastName, String provider, String providerId) {
 
-        log.error("createOAuth2User called with email: {}, provider: {}, providerId: {}",
-                email, provider, providerId);
+        log.error("createOAuth2User called with email: {}, provider: {}, providerId: {}", email, provider, providerId);
 
         String username = generateUsername(email);
         log.error("Generated username: {}", username);
@@ -217,8 +214,10 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         try {
             User savedUser = userService.save(newUser);
-            log.error("Successfully saved OAuth2 user with ID: {} and email: {}",
-                    savedUser.getId(), savedUser.getEmail());
+            log.error(
+                    "Successfully saved OAuth2 user with ID: {} and email: {}",
+                    savedUser.getId(),
+                    savedUser.getEmail());
             return savedUser;
         } catch (Exception e) {
             log.error("FAILED to save OAuth2 user!", e);
@@ -234,7 +233,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         while (userService.existsByUsername(username)) {
             username = baseUsername + counter;
             counter++;
-            log.error("Username {} taken, trying {}", baseUsername + (counter-1), username);
+            log.error("Username {} taken, trying {}", baseUsername + (counter - 1), username);
         }
 
         log.error("Generated final username: {} for email: {}", username, email);

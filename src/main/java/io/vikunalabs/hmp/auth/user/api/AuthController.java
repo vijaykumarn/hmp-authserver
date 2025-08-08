@@ -11,6 +11,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import java.time.Duration;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -21,9 +23,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Duration;
-import java.util.UUID;
-
 @Slf4j
 @RequiredArgsConstructor
 @RestController
@@ -31,8 +30,7 @@ import java.util.UUID;
 @CrossOrigin(
         origins = {"http://localhost:5173", "http://localhost:3000"},
         allowCredentials = "true",
-        maxAge = 3600
-)
+        maxAge = 3600)
 public class AuthController {
 
     private final AuthService authService;
@@ -48,8 +46,7 @@ public class AuthController {
     }
 
     @GetMapping("/confirm-account")
-    public ResponseEntity<ApiResponse<String>> confirmAccount(
-            @NotBlank @RequestParam("token") String tokenValue) {
+    public ResponseEntity<ApiResponse<String>> confirmAccount(@NotBlank @RequestParam("token") String tokenValue) {
         log.info("Account confirmation attempt with token: {}", tokenValue);
 
         UUID token = parseToken(tokenValue);
@@ -59,8 +56,7 @@ public class AuthController {
 
     @PostMapping("/resend-verification")
     public ResponseEntity<ApiResponse<String>> resendVerification(
-            @Valid @RequestBody ResendVerificationRequest request,
-            HttpServletRequest httpRequest) {
+            @Valid @RequestBody ResendVerificationRequest request, HttpServletRequest httpRequest) {
 
         String rateLimitKey = "resend-verification:" + request.email();
 
@@ -73,7 +69,6 @@ public class AuthController {
         ApiResponse<String> response = authService.resendVerificationCode(request);
         return ResponseEntity.accepted().body(response);
     }
-
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(
@@ -92,8 +87,8 @@ public class AuthController {
         log.info("Login attempt for email: {}", request.login());
 
         try {
-            Authentication authenticationRequest = UsernamePasswordAuthenticationToken
-                    .unauthenticated(request.login(), request.password());
+            Authentication authenticationRequest =
+                    UsernamePasswordAuthenticationToken.unauthenticated(request.login(), request.password());
 
             Authentication authenticationResponse = authenticationManager.authenticate(authenticationRequest);
 
@@ -112,9 +107,7 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<String>> logout(
-            HttpServletRequest request,
-            HttpServletResponse response) {
+    public ResponseEntity<ApiResponse<String>> logout(HttpServletRequest request, HttpServletResponse response) {
         log.info("Logout attempt");
         ApiResponse<String> logoutResponse = authService.logout(request, response);
         return ResponseEntity.ok(logoutResponse);
@@ -122,8 +115,7 @@ public class AuthController {
 
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<String>> forgotPassword(
-            @Valid @RequestBody ForgotPasswordRequest request,
-            HttpServletRequest httpRequest) {
+            @Valid @RequestBody ForgotPasswordRequest request, HttpServletRequest httpRequest) {
 
         String rateLimitKey = "forgot-password:" + request.email();
 
@@ -138,8 +130,7 @@ public class AuthController {
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<ApiResponse<String>> resetPassword(
-            @Valid @RequestBody ResetPasswordRequest request) {
+    public ResponseEntity<ApiResponse<String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         log.info("Password reset attempt with token");
         UUID token = parseToken(request.token());
         ApiResponse<String> response = authService.resetPassword(token, request.newPassword());

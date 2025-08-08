@@ -5,9 +5,8 @@ import io.vikunalabs.hmp.auth.user.api.dto.*;
 import io.vikunalabs.hmp.auth.user.domain.TokenType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.security.core.Authentication;
-
 import java.util.UUID;
+import org.springframework.security.core.Authentication;
 
 public interface AuthService {
 

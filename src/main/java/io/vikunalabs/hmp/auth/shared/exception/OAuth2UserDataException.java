@@ -10,6 +10,7 @@ public class OAuth2UserDataException extends AuthException {
     }
 
     public static OAuth2UserDataException invalidEmailFormat(String email) {
-        return new OAuth2UserDataException(String.format("Invalid email format received from OAuth2 provider: %s", email));
+        return new OAuth2UserDataException(
+                String.format("Invalid email format received from OAuth2 provider: %s", email));
     }
 }

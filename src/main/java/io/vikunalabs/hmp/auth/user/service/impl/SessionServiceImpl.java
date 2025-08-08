@@ -13,11 +13,15 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionInformation;
@@ -26,13 +30,6 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Optional;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -47,8 +44,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     @Transactional
-    public void createSession(User user, Boolean rememberMe,
-                              HttpServletRequest request, HttpServletResponse response) {
+    public void createSession(User user, Boolean rememberMe, HttpServletRequest request, HttpServletResponse response) {
         log.debug("Creating secure session for user: {}", user.getEmail());
 
         // Prevent session fixation - invalidate existing session
@@ -88,11 +84,7 @@ public class SessionServiceImpl implements SessionService {
         CustomUserDetails customUserDetails = new CustomUserDetails(savedUser);
 
         UsernamePasswordAuthenticationToken authentication =
-                new UsernamePasswordAuthenticationToken(
-                        customUserDetails,
-                        null,
-                        customUserDetails.getAuthorities()
-                );
+                new UsernamePasswordAuthenticationToken(customUserDetails, null, customUserDetails.getAuthorities());
 
         // Set up security context
         SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
@@ -134,8 +126,11 @@ public class SessionServiceImpl implements SessionService {
         // Register session with Spring's SessionRegistry
         registerSessionWithRegistry(savedUser, session.getId());
 
-        log.info("Secure session created for user: {} (IP: {}) with timeout: {} seconds",
-                savedUser.getEmail(), clientIp, sessionTimeout);
+        log.info(
+                "Secure session created for user: {} (IP: {}) with timeout: {} seconds",
+                savedUser.getEmail(),
+                clientIp,
+                sessionTimeout);
     }
 
     @Override
@@ -149,8 +144,7 @@ public class SessionServiceImpl implements SessionService {
 
         try {
             // Get session from database
-            Optional<UserSession> userSessionOpt = sessionRepository
-                    .findBySessionIdAndActiveTrue(session.getId());
+            Optional<UserSession> userSessionOpt = sessionRepository.findBySessionIdAndActiveTrue(session.getId());
 
             if (userSessionOpt.isEmpty()) {
                 log.warn("Session not found in database: {}", session.getId());
@@ -171,8 +165,11 @@ public class SessionServiceImpl implements SessionService {
             if (sessionProperties.isRequireSameIp()) {
                 String currentIp = getClientIP(request);
                 if (!userSession.getIpAddress().equals(currentIp)) {
-                    log.warn("IP address mismatch for session: {} (stored: {}, current: {})",
-                            session.getId(), userSession.getIpAddress(), currentIp);
+                    log.warn(
+                            "IP address mismatch for session: {} (stored: {}, current: {})",
+                            session.getId(),
+                            userSession.getIpAddress(),
+                            currentIp);
                     markSessionInactive(session.getId(), LogoutReason.IP_ADDRESS_CHANGE);
                     return false;
                 }
@@ -289,8 +286,7 @@ public class SessionServiceImpl implements SessionService {
             return null;
         }
 
-        Optional<UserSession> userSessionOpt = sessionRepository
-                .findBySessionIdAndActiveTrue(session.getId());
+        Optional<UserSession> userSessionOpt = sessionRepository.findBySessionIdAndActiveTrue(session.getId());
 
         return userSessionOpt.map(this::mapToSessionInfo).orElse(null);
     }
@@ -314,9 +310,7 @@ public class SessionServiceImpl implements SessionService {
     // Additional method to get user's active sessions
     public List<SessionInfo> getUserActiveSessions(Long userId) {
         List<UserSession> sessions = sessionRepository.findActiveSessionsByUserId(userId);
-        return sessions.stream()
-                .map(this::mapToSessionInfo)
-                .toList();
+        return sessions.stream().map(this::mapToSessionInfo).toList();
     }
 
     // Private helper methods
@@ -328,8 +322,7 @@ public class SessionServiceImpl implements SessionService {
 
         if (activeSessionCount >= maxSessions) {
             // Get oldest sessions and invalidate them
-            List<UserSession> sessions = sessionRepository
-                    .findActiveSessionsByUserIdOrderByCreatedAsc(userId);
+            List<UserSession> sessions = sessionRepository.findActiveSessionsByUserIdOrderByCreatedAsc(userId);
 
             // FIXED: Use maxSessions instead of undefined maxConcurrentSessions
             int sessionsToInvalidate = (int) (activeSessionCount - maxSessions + 1);
@@ -339,19 +332,20 @@ public class SessionServiceImpl implements SessionService {
                 oldSession.invalidate(LogoutReason.CONCURRENT_SESSION_LIMIT);
                 sessionRepository.save(oldSession);
 
-                log.info("Invalidated old session {} for user {} due to concurrent session limit",
-                        oldSession.getSessionId(), userId);
+                log.info(
+                        "Invalidated old session {} for user {} due to concurrent session limit",
+                        oldSession.getSessionId(),
+                        userId);
             }
         }
     }
 
     @Transactional
     protected void markSessionInactive(String sessionId, LogoutReason reason) {
-        sessionRepository.findBySessionIdAndActiveTrue(sessionId)
-                .ifPresent(userSession -> {
-                    userSession.invalidate(reason);
-                    sessionRepository.save(userSession);
-                });
+        sessionRepository.findBySessionIdAndActiveTrue(sessionId).ifPresent(userSession -> {
+            userSession.invalidate(reason);
+            sessionRepository.save(userSession);
+        });
     }
 
     private SessionInfo mapToSessionInfo(UserSession userSession) {

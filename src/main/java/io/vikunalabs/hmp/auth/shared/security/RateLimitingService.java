@@ -1,14 +1,13 @@
 package io.vikunalabs.hmp.auth.shared.security;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
@@ -18,12 +17,13 @@ public class RateLimitingService {
     private final Map<String, RateLimitInfo> rateLimitMap = new ConcurrentHashMap<>();
 
     public boolean isRateLimited(String identifier, int maxAttempts, Duration timeWindow) {
-        rateLimitMap.entrySet().removeIf(entry ->
-                entry.getValue().getFirstAttempt().plus(timeWindow).isBefore(Instant.now())
-        );
+        rateLimitMap
+                .entrySet()
+                .removeIf(entry ->
+                        entry.getValue().getFirstAttempt().plus(timeWindow).isBefore(Instant.now()));
 
-        RateLimitInfo info = rateLimitMap.computeIfAbsent(identifier,
-                k -> new RateLimitInfo(0, Instant.now(), Instant.now()));
+        RateLimitInfo info =
+                rateLimitMap.computeIfAbsent(identifier, k -> new RateLimitInfo(0, Instant.now(), Instant.now()));
 
         Instant now = Instant.now();
 
@@ -41,8 +41,7 @@ public class RateLimitingService {
 
         boolean limited = info.getAttempts() > maxAttempts;
         if (limited) {
-            log.warn("Rate limit exceeded for identifier: {} (attempts: {})",
-                    identifier, info.getAttempts());
+            log.warn("Rate limit exceeded for identifier: {} (attempts: {})", identifier, info.getAttempts());
         }
 
         return limited;

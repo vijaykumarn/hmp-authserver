@@ -5,7 +5,6 @@ import io.vikunalabs.hmp.auth.oauth2.CustomOidcUserService;
 import io.vikunalabs.hmp.auth.oauth2.OAuth2AuthenticationFailureHandler;
 import io.vikunalabs.hmp.auth.oauth2.OAuth2AuthenticationSuccessHandler;
 import io.vikunalabs.hmp.auth.user.service.CustomUserDetailsService;
-import io.vikunalabs.hmp.auth.user.service.SessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -19,7 +18,6 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.session.SessionRegistry;
-import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.web.AuthorizationRequestRepository;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
@@ -48,8 +46,7 @@ public class AppSecurityConfig {
     private final AuthorizationRequestRepository<OAuth2AuthorizationRequest> authorizationRequestRepository;
 
     @Bean
-    AuthenticationManager authenticationManager(
-            AuthenticationConfiguration authConfig) throws Exception {
+    AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
         return authConfig.getAuthenticationManager();
     }
 
@@ -65,44 +62,44 @@ public class AppSecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         log.info("Configuring SecurityFilterChain with OAuth2 and OIDC...");
 
-        return http
-                .authenticationProvider(authenticationProvider())
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/error", "/public/**").permitAll()
-                        .anyRequest().authenticated())
+        return http.authenticationProvider(authenticationProvider())
+                .authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**", "/error", "/public/**")
+                        .permitAll()
+                        .anyRequest()
+                        .authenticated())
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
 
                 // OAuth2 Login Configuration with BOTH OAuth2 and OIDC support
                 .oauth2Login(oauth2 -> {
                     log.info("Configuring OAuth2 login with CustomOAuth2UserService and CustomOidcUserService");
-                    oauth2
-                            .authorizationEndpoint(authorization -> authorization
-                                    .authorizationRequestRepository(authorizationRequestRepository))
+                    oauth2.authorizationEndpoint(authorization ->
+                                    authorization.authorizationRequestRepository(authorizationRequestRepository))
                             .userInfoEndpoint(userInfo -> {
                                 log.info("Setting OAuth2 user service: {}", customOAuth2UserService);
                                 log.info("Setting OIDC user service: {}", customOidcUserService);
-                                userInfo
-                                        .userService(customOAuth2UserService)      // For regular OAuth2
-                                        .oidcUserService(customOidcUserService);   // For OIDC (Google)
+                                userInfo.userService(customOAuth2UserService) // For regular OAuth2
+                                        .oidcUserService(customOidcUserService); // For OIDC (Google)
                             })
                             .successHandler(oauth2SuccessHandler)
                             .failureHandler(oauth2FailureHandler);
                 })
 
                 // CSRF Protection
-                .csrf(csrf -> csrf
-                        .csrfTokenRepository(csrfTokenRepository)
-                        .ignoringRequestMatchers("/api/auth/register", "/api/auth/login",
-                                "/api/auth/logout", "/api/auth/forgot-password",
-                                "/api/auth/reset-password", "/api/auth/confirm-account",
-                                "/api/auth/resend-verification", "/api/auth/confirm-password-token"))
-
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                                .maximumSessions(3)
-                                .maxSessionsPreventsLogin(false)
-                                .sessionRegistry(sessionRegistry))
+                .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository)
+                        .ignoringRequestMatchers(
+                                "/api/auth/register",
+                                "/api/auth/login",
+                                "/api/auth/logout",
+                                "/api/auth/forgot-password",
+                                "/api/auth/reset-password",
+                                "/api/auth/confirm-account",
+                                "/api/auth/resend-verification",
+                                "/api/auth/confirm-password-token"))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                        .maximumSessions(3)
+                        .maxSessionsPreventsLogin(false)
+                        .sessionRegistry(sessionRegistry))
                 .addFilterAfter(sessionSecurityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

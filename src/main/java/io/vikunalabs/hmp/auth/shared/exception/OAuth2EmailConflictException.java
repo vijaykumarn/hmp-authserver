@@ -6,8 +6,8 @@ public class OAuth2EmailConflictException extends AuthException {
     }
 
     public static OAuth2EmailConflictException withEmail(String email, String existingProvider) {
-        return new OAuth2EmailConflictException(
-            String.format("Email %s is already registered with %s. Please use %s to sign in or contact support to link accounts.", 
-                         email, existingProvider, existingProvider));
+        return new OAuth2EmailConflictException(String.format(
+                "Email %s is already registered with %s. Please use %s to sign in or contact support to link accounts.",
+                email, existingProvider, existingProvider));
     }
 }

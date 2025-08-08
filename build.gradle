@@ -3,6 +3,7 @@ plugins {
 	id 'org.springframework.boot' version '3.5.4'
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'gg.jte.gradle' version '3.1.16'
+	id 'com.diffplug.spotless' version '7.1.0'
 }
 
 group = 'io.vikunalabs.hmp'
@@ -56,6 +57,30 @@ jte {
 	generate()
 	binaryStaticContent = true
 }
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+// Spotless
+spotless {
+	java {
+		target fileTree('src') {
+			include '**/*.java'
+			exclude '**/build/**', '**/build-*/**'
+		}
+		toggleOffOn()
+		palantirJavaFormat()
+		removeUnusedImports()
+		trimTrailingWhitespace()
+		endWithNewline()
+		importOrder()
+		formatAnnotations()
+	}
+}
+
+tasks.compileJava.dependsOn(spotlessApply)
+tasks.compileTestJava.dependsOn(spotlessApply)
 
 tasks.named('test') {
 	useJUnitPlatform()

@@ -5,19 +5,16 @@ import io.vikunalabs.hmp.auth.user.service.SessionService;
 import io.vikunalabs.hmp.auth.user.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
-
-import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -31,15 +28,17 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
     private String successRedirectUrl;
 
     @Override
-    public void onAuthenticationSuccess(HttpServletRequest request,
-                                        HttpServletResponse response,
-                                        Authentication authentication) throws IOException {
+    public void onAuthenticationSuccess(
+            HttpServletRequest request, HttpServletResponse response, Authentication authentication)
+            throws IOException {
 
         User user = null;
         String userEmail = null;
 
         log.info("OAuth2 authentication success handler called");
-        log.info("Authentication principal type: {}", authentication.getPrincipal().getClass().getName());
+        log.info(
+                "Authentication principal type: {}",
+                authentication.getPrincipal().getClass().getName());
 
         // Handle OAuth2UserPrincipal (for regular OAuth2)
         if (authentication.getPrincipal() instanceof OAuth2UserPrincipal principal) {
@@ -60,7 +59,8 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                 log.error("Could not find user for OIDC subject: {}", providerId, e);
             }
         } else {
-            log.error("Unexpected authentication principal type: {}",
+            log.error(
+                    "Unexpected authentication principal type: {}",
                     authentication.getPrincipal().getClass().getName());
             String errorUrl = buildErrorRedirectUrl("unsupported_principal_type");
             response.sendRedirect(errorUrl);

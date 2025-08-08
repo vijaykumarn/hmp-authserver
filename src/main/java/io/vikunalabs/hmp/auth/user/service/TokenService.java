@@ -3,7 +3,6 @@ package io.vikunalabs.hmp.auth.user.service;
 import io.vikunalabs.hmp.auth.user.domain.Token;
 import io.vikunalabs.hmp.auth.user.domain.TokenType;
 import io.vikunalabs.hmp.auth.user.domain.User;
-
 import java.util.UUID;
 
 public interface TokenService {

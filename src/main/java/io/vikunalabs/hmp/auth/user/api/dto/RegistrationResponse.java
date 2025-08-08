@@ -4,10 +4,4 @@ import lombok.Builder;
 
 @Builder
 public record RegistrationResponse(
-        Long id,
-        String email,
-        String username,
-        String firstName,
-        String lastName,
-        String organisation
-) {}
+        Long id, String email, String username, String firstName, String lastName, String organisation) {}

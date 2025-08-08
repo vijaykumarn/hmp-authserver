@@ -1,14 +1,13 @@
 package io.vikunalabs.hmp.auth.oauth2;
 
 import io.vikunalabs.hmp.auth.user.domain.User;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.user.OAuth2User;
-
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 
 @RequiredArgsConstructor
 public class OAuth2UserPrincipal implements OAuth2User {

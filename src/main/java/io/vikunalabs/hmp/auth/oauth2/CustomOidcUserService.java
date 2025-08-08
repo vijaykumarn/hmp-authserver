@@ -6,26 +6,12 @@ import io.vikunalabs.hmp.auth.user.domain.UserRole;
 import io.vikunalabs.hmp.auth.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
-import org.springframework.security.oauth2.core.OAuth2Error;
-import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
-
-import jakarta.servlet.http.HttpServletRequest;
-
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -80,8 +66,9 @@ public class CustomOidcUserService extends OidcUserService {
         try {
             User existingEmailUser = userService.findByEmail(email);
             log.warn("Email {} already exists with provider: {}", email, existingEmailUser.getProvider());
-            String existingProvider = "local".equals(existingEmailUser.getProvider()) ?
-                    "email/password" : existingEmailUser.getProvider();
+            String existingProvider = "local".equals(existingEmailUser.getProvider())
+                    ? "email/password"
+                    : existingEmailUser.getProvider();
             throw OAuth2EmailConflictException.withEmail(email, existingProvider);
         } catch (UserNotFoundException e) {
             log.info("Email available, proceeding with user creation");

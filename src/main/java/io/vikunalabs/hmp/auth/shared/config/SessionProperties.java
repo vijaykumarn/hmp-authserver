@@ -12,7 +12,7 @@ public class SessionProperties {
     private int maxConcurrent = 3;
     private boolean requireSameIp = true;
     private boolean detectUserAgentChange = true;
-    
+
     @Data
     public static class Timeout {
         private int defaultSeconds = 3600;
