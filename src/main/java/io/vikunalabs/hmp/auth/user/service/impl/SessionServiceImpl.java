@@ -70,17 +70,26 @@ public class SessionServiceImpl implements SessionService {
         String userAgent = getUserAgent(request);
         String userAgentHash = hashUserAgent(userAgent);
 
-        // Update user login information - FIXED: Proper transaction handling
-        user.setLastLogin(Instant.now());
-        user.setRememberMe(rememberMe != null && rememberMe);
-        User savedUser = userService.save(user); // Ensure save is called
+        // FIXED: Get fresh user instance to avoid optimistic locking
+        User freshUser;
+        try {
+            freshUser = userService.findById(user.getId());
+        } catch (Exception e) {
+            log.warn("Could not fetch fresh user, using provided user instance");
+            freshUser = user;
+        }
 
-        // FIXED: Create authentication with CustomUserDetails as principal
+        // Update user login information
+        freshUser.setLastLogin(Instant.now());
+        freshUser.setRememberMe(rememberMe != null && rememberMe);
+        User savedUser = userService.save(freshUser);
+
+        // Create authentication with CustomUserDetails as principal
         CustomUserDetails customUserDetails = new CustomUserDetails(savedUser);
 
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(
-                        customUserDetails, // Use CustomUserDetails instead of email string
+                        customUserDetails,
                         null,
                         customUserDetails.getAuthorities()
                 );
@@ -122,7 +131,7 @@ public class SessionServiceImpl implements SessionService {
         // Configure secure cookie
         configureSecureSessionCookie(response, session.getId(), sessionTimeout);
 
-        // FIXED: Register session with Spring's SessionRegistry - YES, this is correctly placed
+        // Register session with Spring's SessionRegistry
         registerSessionWithRegistry(savedUser, session.getId());
 
         log.info("Secure session created for user: {} (IP: {}) with timeout: {} seconds",
@@ -289,9 +298,17 @@ public class SessionServiceImpl implements SessionService {
     @Override
     @Transactional
     public void updateLastLogin(User user) {
-        user.setLastLogin(Instant.now());
-        userService.save(user);
-        log.debug("Updated last login for user: {}", user.getEmail());
+        // FIXED: This method is now redundant since we update lastLogin in createSession
+        // But if called separately, fetch fresh user to avoid optimistic locking
+        try {
+            User freshUser = userService.findById(user.getId());
+            freshUser.setLastLogin(Instant.now());
+            userService.save(freshUser);
+            log.debug("Updated last login for user: {}", freshUser.getEmail());
+        } catch (Exception e) {
+            log.warn("Could not update last login for user: {} - {}", user.getEmail(), e.getMessage());
+            // Don't throw exception - this is not critical
+        }
     }
 
     // Additional method to get user's active sessions
