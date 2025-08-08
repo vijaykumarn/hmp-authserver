@@ -1,9 +1,9 @@
 package io.vikunalabs.hmp.auth.shared.security;
 
-import io.vikunalabs.hmp.auth.oauth2.CustomOAuth2UserService;
-import io.vikunalabs.hmp.auth.oauth2.CustomOidcUserService;
-import io.vikunalabs.hmp.auth.oauth2.OAuth2AuthenticationFailureHandler;
-import io.vikunalabs.hmp.auth.oauth2.OAuth2AuthenticationSuccessHandler;
+import io.vikunalabs.hmp.auth.oauth2.handler.OAuth2AuthenticationFailureHandler;
+import io.vikunalabs.hmp.auth.oauth2.handler.OAuth2AuthenticationSuccessHandler;
+import io.vikunalabs.hmp.auth.oauth2.userinfo.CustomOAuth2UserService;
+import io.vikunalabs.hmp.auth.oauth2.userinfo.CustomOidcUserService;
 import io.vikunalabs.hmp.auth.user.service.CustomUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,4 +1,4 @@
-package io.vikunalabs.hmp.auth.oauth2;
+package io.vikunalabs.hmp.auth.oauth2.domain.principal;
 
 import io.vikunalabs.hmp.auth.user.domain.User;
 import java.util.Collection;

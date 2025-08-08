@@ -1,4 +1,4 @@
-package io.vikunalabs.hmp.auth.oauth2;
+package io.vikunalabs.hmp.auth.oauth2.config;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
