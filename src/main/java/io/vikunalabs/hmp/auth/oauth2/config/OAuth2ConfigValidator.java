@@ -1,4 +1,4 @@
-package io.vikunalabs.hmp.auth.oauth2;
+package io.vikunalabs.hmp.auth.oauth2.config;
 
 import io.vikunalabs.hmp.auth.shared.config.OAuth2ConfigProperties;
 import lombok.RequiredArgsConstructor;

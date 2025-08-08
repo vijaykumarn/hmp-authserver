@@ -1,4 +1,4 @@
-package io.vikunalabs.hmp.auth.user.api;
+package io.vikunalabs.hmp.auth.oauth2.web;
 
 import io.vikunalabs.hmp.auth.shared.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;

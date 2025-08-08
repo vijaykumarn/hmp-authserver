@@ -30,4 +30,14 @@ public interface UserService {
     User findByProviderAndProviderId(String provider, String providerId);
 
     boolean existsByUsername(String username);
+
+    /**
+     * Generates a unique username based on email
+     */
+    String generateUniqueUsername(String email);
+
+    /**
+     * Checks if email exists (optional variant for better readability)
+     */
+    boolean isEmailTaken(String email);
 }

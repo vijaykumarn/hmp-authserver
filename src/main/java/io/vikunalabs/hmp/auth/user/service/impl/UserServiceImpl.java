@@ -8,6 +8,7 @@ import io.vikunalabs.hmp.auth.user.repository.UserRepository;
 import io.vikunalabs.hmp.auth.user.service.UserService;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -149,5 +150,48 @@ public class UserServiceImpl implements UserService {
     @Override
     public boolean existsByUsername(String username) {
         return userRepository.existsByUsername(username);
+    }
+
+    @Override
+    public String generateUniqueUsername(String email) {
+        String baseUsername = email.split("@")[0]
+                .replaceAll("[^a-zA-Z0-9._-]", "") // Remove invalid characters
+                .toLowerCase();
+
+        // Ensure minimum length
+        if (baseUsername.length() < 3) {
+            baseUsername = "user" + baseUsername;
+        }
+
+        // Ensure maximum length
+        if (baseUsername.length() > 15) {
+            baseUsername = baseUsername.substring(0, 15);
+        }
+
+        String username = baseUsername;
+        int counter = 1;
+
+        while (existsByUsername(username)) {
+            String suffix = String.valueOf(counter);
+            int maxBaseLength = 15 - suffix.length();
+            String truncatedBase =
+                    baseUsername.length() > maxBaseLength ? baseUsername.substring(0, maxBaseLength) : baseUsername;
+            username = truncatedBase + counter;
+            counter++;
+
+            // Prevent infinite loop
+            if (counter > 1000) {
+                username = "user" + UUID.randomUUID().toString().substring(0, 8);
+                break;
+            }
+        }
+
+        log.debug("Generated username: {} for email: {}", username, email);
+        return username;
+    }
+
+    @Override
+    public boolean isEmailTaken(String email) {
+        return userRepository.existsByEmail(email);
     }
 }
