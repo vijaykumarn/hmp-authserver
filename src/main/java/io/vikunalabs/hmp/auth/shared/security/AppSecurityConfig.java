@@ -1,6 +1,7 @@
 package io.vikunalabs.hmp.auth.shared.security;
 
 import io.vikunalabs.hmp.auth.oauth2.CustomOAuth2UserService;
+import io.vikunalabs.hmp.auth.oauth2.CustomOidcUserService;
 import io.vikunalabs.hmp.auth.oauth2.OAuth2AuthenticationFailureHandler;
 import io.vikunalabs.hmp.auth.oauth2.OAuth2AuthenticationSuccessHandler;
 import io.vikunalabs.hmp.auth.user.service.CustomUserDetailsService;
@@ -34,12 +35,13 @@ import org.springframework.security.web.csrf.CsrfTokenRepository;
 public class AppSecurityConfig {
 
     private final SessionSecurityFilter sessionSecurityFilter;
-    private final CustomUserDetailsService customUserDetailsService; // ADDED
+    private final CustomUserDetailsService customUserDetailsService;
     private final PasswordEncoder passwordEncoder;
     private final SessionRegistry sessionRegistry;
 
     // OAuth2 and Security components
-    private final CustomOAuth2UserService customOAuth2UserService;
+    private final CustomOAuth2UserService customOAuth2UserService; // Keep this for non-OIDC OAuth2
+    private final CustomOidcUserService customOidcUserService; // NEW: Add this
     private final OAuth2AuthenticationSuccessHandler oauth2SuccessHandler;
     private final OAuth2AuthenticationFailureHandler oauth2FailureHandler;
     private final CsrfTokenRepository csrfTokenRepository;
@@ -61,6 +63,8 @@ public class AppSecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        log.info("Configuring SecurityFilterChain with OAuth2 and OIDC...");
+
         return http
                 .authenticationProvider(authenticationProvider())
                 .authorizeHttpRequests(auth -> auth
@@ -69,14 +73,22 @@ public class AppSecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
 
-                // OAuth2 Login Configuration with Security
-                .oauth2Login(oauth2 -> oauth2
-                        .authorizationEndpoint(authorization -> authorization
-                                .authorizationRequestRepository(authorizationRequestRepository))
-                        .userInfoEndpoint(userInfo -> userInfo
-                                .userService(customOAuth2UserService))
-                        .successHandler(oauth2SuccessHandler)
-                        .failureHandler(oauth2FailureHandler))
+                // OAuth2 Login Configuration with BOTH OAuth2 and OIDC support
+                .oauth2Login(oauth2 -> {
+                    log.info("Configuring OAuth2 login with CustomOAuth2UserService and CustomOidcUserService");
+                    oauth2
+                            .authorizationEndpoint(authorization -> authorization
+                                    .authorizationRequestRepository(authorizationRequestRepository))
+                            .userInfoEndpoint(userInfo -> {
+                                log.info("Setting OAuth2 user service: {}", customOAuth2UserService);
+                                log.info("Setting OIDC user service: {}", customOidcUserService);
+                                userInfo
+                                        .userService(customOAuth2UserService)      // For regular OAuth2
+                                        .oidcUserService(customOidcUserService);   // For OIDC (Google)
+                            })
+                            .successHandler(oauth2SuccessHandler)
+                            .failureHandler(oauth2FailureHandler);
+                })
 
                 // CSRF Protection
                 .csrf(csrf -> csrf

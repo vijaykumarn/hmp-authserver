@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -36,18 +38,24 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         User user = null;
         String userEmail = null;
 
-        // Handle both OAuth2UserPrincipal and OidcUser (Google uses OidcUser)
+        log.info("OAuth2 authentication success handler called");
+        log.info("Authentication principal type: {}", authentication.getPrincipal().getClass().getName());
+
+        // Handle OAuth2UserPrincipal (for regular OAuth2)
         if (authentication.getPrincipal() instanceof OAuth2UserPrincipal principal) {
             user = principal.getUser();
             userEmail = user.getEmail();
-        } else if (authentication.getPrincipal() instanceof OidcUser oidcUser) {
-            // Extract user info from OidcUser
+        }
+        // Handle OidcUser (Google OIDC) - This is the standard Spring Security OIDC user
+        else if (authentication.getPrincipal() instanceof OidcUser oidcUser) {
+            log.info("Found OidcUser with subject: {}", oidcUser.getSubject());
             userEmail = oidcUser.getEmail();
             String providerId = oidcUser.getSubject();
 
             try {
-                // Find the user that was created/updated by CustomOAuth2UserService
+                // Find the user that was created/found by CustomOidcUserService
                 user = userService.findByProviderAndProviderId("google", providerId);
+                log.info("Retrieved user: {} (ID: {})", user.getEmail(), user.getId());
             } catch (Exception e) {
                 log.error("Could not find user for OIDC subject: {}", providerId, e);
             }
@@ -66,14 +74,12 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
             return;
         }
 
-        log.info("OAuth2 authentication successful for user: {}", user.getEmail());
+        log.info("OAuth2 authentication successful for user: {} with ID: {}", user.getEmail(), user.getId());
 
         try {
             // Create session using existing session service
+            // This also updates the lastLogin timestamp
             sessionService.createSession(user, false, request, response);
-
-            // Update last login
-            sessionService.updateLastLogin(user);
 
             log.info("Created session for OAuth2 user: {} (ID: {})", user.getEmail(), user.getId());
 
