@@ -13,10 +13,6 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/auth/oauth2")
-@CrossOrigin(
-        origins = {"http://localhost:5173", "http://localhost:3000"},
-        allowCredentials = "true",
-        maxAge = 3600)
 public class OAuth2Controller {
 
     @GetMapping("/authorization-url/google")

@@ -13,12 +13,26 @@ public class CorsConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
+
+        // Allow specific origins for development and production
         configuration.setAllowedOriginPatterns(
-                List.of("http://localhost:3000", "http://localhost:5173", "https://*.yourdomain.com"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+                List.of("http://localhost:5173", "http://localhost:3000", "https://*.yourdomain.com"));
+
+        // Allow all common HTTP methods
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
+
+        // Allow all headers (be more specific in production if needed)
         configuration.setAllowedHeaders(List.of("*"));
+
+        // Enable credentials (required for session-based auth)
         configuration.setAllowCredentials(true);
+
+        // Cache preflight response for 1 hour
         configuration.setMaxAge(3600L);
+
+        // Expose headers that frontend might need
+        configuration.setExposedHeaders(List.of(
+                "Authorization", "X-XSRF-TOKEN", "Access-Control-Allow-Origin", "Access-Control-Allow-Credentials"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

@@ -27,45 +27,39 @@ public class SessionSecurityFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        // Skip validation for public endpoints
         String requestPath = request.getRequestURI();
+        log.debug("SessionSecurityFilter processing: {} {}", request.getMethod(), requestPath);
+
+        // Skip validation for public endpoints
         if (isPublicEndpoint(requestPath)) {
+            log.debug("Skipping session validation for public endpoint: {}", requestPath);
             filterChain.doFilter(request, response);
             return;
         }
 
-        // Check if session exists first, then validate authentication
+        // Special handling for session validation endpoints during OAuth2 callback
+        if (isSessionValidationEndpoint(requestPath)) {
+            log.debug("Processing session validation endpoint: {}", requestPath);
+
+            HttpSession session = request.getSession(false);
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+            // Allow the request to proceed - let the controller handle validation
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // Standard session validation for other protected endpoints
         HttpSession session = request.getSession(false);
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        // If there's a session but no authentication, or authentication exists but is not authenticated
         if (session != null
-                && (authentication == null
-                        || !authentication.isAuthenticated()
-                        || "anonymousUser".equals(authentication.getPrincipal()))) {
-
-            if (!sessionService.validateSessionSecurity(request)) {
-                log.warn("Session security validation failed for request: {}", requestPath);
-                // Clear any existing invalid session
-                session.invalidate();
-                SecurityContextHolder.clearContext();
-
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType("application/json");
-                response.getWriter()
-                        .write(
-                                "{\"success\":false,\"error\":\"INVALID_SESSION\",\"message\":\"Session validation failed\"}");
-                return;
-            }
-        }
-
-        // If user is properly authenticated, validate session security
-        if (authentication != null
+                && authentication != null
                 && authentication.isAuthenticated()
                 && !"anonymousUser".equals(authentication.getPrincipal())) {
 
             if (!sessionService.validateSessionSecurity(request)) {
-                log.warn("Session security validation failed for authenticated user: {}", requestPath);
+                log.warn("Session security validation failed for request: {}", requestPath);
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
                 response.getWriter()
@@ -79,6 +73,14 @@ public class SessionSecurityFilter extends OncePerRequestFilter {
     }
 
     private boolean isPublicEndpoint(String path) {
-        return path.startsWith("/api/auth/") || path.equals("/error") || path.startsWith("/public/");
+        return path.startsWith("/api/auth/")
+                || path.equals("/error")
+                || path.startsWith("/public/")
+                || path.startsWith("/oauth2/")
+                || path.startsWith("/login/oauth2/");
+    }
+
+    private boolean isSessionValidationEndpoint(String path) {
+        return path.equals("/api/session/validate") || path.equals("/api/session/check");
     }
 }

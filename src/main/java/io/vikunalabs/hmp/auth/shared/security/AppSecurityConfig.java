@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -24,6 +25,7 @@ import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequ
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -36,6 +38,7 @@ public class AppSecurityConfig {
     private final CustomUserDetailsService customUserDetailsService;
     private final PasswordEncoder passwordEncoder;
     private final SessionRegistry sessionRegistry;
+    private final CorsConfigurationSource corsConfigurationSource;
 
     // OAuth2 and Security components
     private final CustomOAuth2UserService customOAuth2UserService; // Keep this for non-OIDC OAuth2
@@ -63,39 +66,48 @@ public class AppSecurityConfig {
         log.info("Configuring SecurityFilterChain with OAuth2 and OIDC...");
 
         return http.authenticationProvider(authenticationProvider())
-                .authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**", "/error", "/public/**")
+
+                // CORS Configuration - MUST come first
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                .authorizeHttpRequests(auth -> auth
+                        // Public endpoints
+                        .requestMatchers("/api/auth/**", "/error", "/public/**", "/oauth2/**", "/login/oauth2/**")
                         .permitAll()
+
+                        // Session endpoints - allow for OAuth2 callback validation
+                        .requestMatchers(HttpMethod.GET, "/api/session/validate", "/api/session/check")
+                        .permitAll()
+
+                        // Other session endpoints require authentication
+                        .requestMatchers("/api/session/**")
+                        .authenticated()
+
+                        // All other requests require authentication
                         .anyRequest()
                         .authenticated())
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
 
-                // OAuth2 Login Configuration with BOTH OAuth2 and OIDC support
+                // OAuth2 Login Configuration
                 .oauth2Login(oauth2 -> {
-                    log.info("Configuring OAuth2 login with CustomOAuth2UserService and CustomOidcUserService");
+                    log.info("Configuring OAuth2 login");
                     oauth2.authorizationEndpoint(authorization ->
                                     authorization.authorizationRequestRepository(authorizationRequestRepository))
                             .userInfoEndpoint(userInfo -> {
-                                log.info("Setting OAuth2 user service: {}", customOAuth2UserService);
-                                log.info("Setting OIDC user service: {}", customOidcUserService);
-                                userInfo.userService(customOAuth2UserService) // For regular OAuth2
-                                        .oidcUserService(customOidcUserService); // For OIDC (Google)
+                                userInfo.userService(customOAuth2UserService).oidcUserService(customOidcUserService);
                             })
                             .successHandler(oauth2SuccessHandler)
                             .failureHandler(oauth2FailureHandler);
                 })
 
-                // CSRF Protection
+                // CSRF Protection - exclude session validation endpoints
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository)
                         .ignoringRequestMatchers(
-                                "/api/auth/register",
-                                "/api/auth/login",
-                                "/api/auth/logout",
-                                "/api/auth/forgot-password",
-                                "/api/auth/reset-password",
-                                "/api/auth/confirm-account",
-                                "/api/auth/resend-verification",
-                                "/api/auth/confirm-password-token"))
+                                "/api/auth/**",
+                                "/api/session/validate",
+                                "/api/session/check",
+                                "/oauth2/**",
+                                "/login/oauth2/**"))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .maximumSessions(3)
                         .maxSessionsPreventsLogin(false)

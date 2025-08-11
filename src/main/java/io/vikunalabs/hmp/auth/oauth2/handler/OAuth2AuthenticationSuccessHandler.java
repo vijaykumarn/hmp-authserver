@@ -7,9 +7,12 @@ import io.vikunalabs.hmp.auth.user.domain.User;
 import io.vikunalabs.hmp.auth.user.service.SessionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -33,6 +36,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         log.info(
                 "Authentication principal type: {}",
                 authentication.getPrincipal().getClass().getName());
+        log.info("Authentication authorities: {}", authentication.getAuthorities());
 
         try {
             // Extract user from either type of custom principal
@@ -47,12 +51,27 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                     provider,
                     isNewUser);
 
-            // Create session
+            // Create session with proper authentication context
             sessionService.createSession(user, false, request, response);
-            log.info("Created session for OAuth2 user: {} (ID: {})", user.getEmail(), user.getId());
 
-            // Determine redirect URL based on whether user is new
+            // Verify session was created successfully
+            HttpSession session = request.getSession(false);
+            if (session != null) {
+                log.info("Session created successfully with ID: {}", session.getId());
+
+                // Log session attributes for debugging
+                log.info(
+                        "Session attributes: {}",
+                        Collections.list(session.getAttributeNames()).stream()
+                                .collect(Collectors.toMap(name -> name, session::getAttribute)));
+            } else {
+                log.error("Failed to create session!");
+            }
+
+            // Determine redirect URL
             String redirectUrl = determineRedirectUrl(isNewUser);
+            log.info("Redirecting to: {}", redirectUrl);
+
             response.sendRedirect(redirectUrl);
 
         } catch (Exception e) {
