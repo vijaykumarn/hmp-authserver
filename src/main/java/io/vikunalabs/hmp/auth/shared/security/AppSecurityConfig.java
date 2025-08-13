@@ -48,6 +48,10 @@ public class AppSecurityConfig {
     private final CsrfTokenRepository csrfTokenRepository;
     private final AuthorizationRequestRepository<OAuth2AuthorizationRequest> authorizationRequestRepository;
 
+    private static final String[] SWAGGER_WHITELIST = {
+        "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/webjars/**"
+    };
+
     @Bean
     AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
         return authConfig.getAuthenticationManager();
@@ -76,6 +80,9 @@ public class AppSecurityConfig {
 
                         // Session endpoints - allow for OAuth2 callback validation
                         .requestMatchers(HttpMethod.GET, "/api/session/validate", "/api/session/check")
+                        .permitAll()
+                        // Allow swagger endpoints without authentication
+                        .requestMatchers(SWAGGER_WHITELIST)
                         .permitAll()
 
                         // Other session endpoints require authentication
@@ -107,7 +114,8 @@ public class AppSecurityConfig {
                                 "/api/session/validate",
                                 "/api/session/check",
                                 "/oauth2/**",
-                                "/login/oauth2/**"))
+                                "/login/oauth2/**",
+                                "/api/v1/security/csrf-token"))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .maximumSessions(3)
                         .maxSessionsPreventsLogin(false)

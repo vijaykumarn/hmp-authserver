@@ -23,46 +23,41 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DisabledException.class)
     public ResponseEntity<ApiResponse<Void>> handleDisabledException(DisabledException ex) {
         log.warn("Login attempt with disabled account: {}", ex.getMessage());
-
-        ApiResponse<Void> response = new ApiResponse<>(
-                false, null, "ACCOUNT_NOT_VERIFIED", "Please verify your email address before logging in");
-
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ApiResponse<>(
+                        false, null, "ACCOUNT_DISABLED", "Account is disabled. Please verify your email address."));
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
         log.warn("Invalid login credentials: {}", ex.getMessage());
-
-        ApiResponse<Void> response =
-                new ApiResponse<>(false, null, "INVALID_CREDENTIALS", "Invalid username or password");
-
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponse<>(false, null, "INVALID_CREDENTIALS", "Invalid username or password"));
     }
 
     @ExceptionHandler({EmailAlreadyTakenException.class, UsernameAlreadyTakenException.class})
-    public ResponseEntity<ApiResponse<Object>> handleConflict(RuntimeException ex) {
-        ApiResponse<Object> response = new ApiResponse<>(false, "CONFLICT", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    public ResponseEntity<ApiResponse<Void>> handleConflict(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiResponse<>(false, null, "CONFLICT", ex.getMessage()));
     }
 
     @ExceptionHandler({InvalidTokenException.class, TokenExpiredException.class, TokenNotFoundException.class})
-    public ResponseEntity<ApiResponse<Object>> handleBadRequest(RuntimeException ex) {
-        ApiResponse<Object> response = new ApiResponse<>(false, "BAD_REQUEST", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    public ResponseEntity<ApiResponse<Void>> handleBadRequest(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(false, null, "INVALID_TOKEN", ex.getMessage()));
     }
 
-    @ExceptionHandler({UserNotFoundException.class})
-    public ResponseEntity<ApiResponse<Object>> handleNotFound(RuntimeException ex) {
-        ApiResponse<Object> response = new ApiResponse<>(false, "NOT_FOUND", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotFound(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(false, null, "USER_NOT_FOUND", ex.getMessage()));
     }
 
-    @ExceptionHandler({TooManyRequestsException.class})
-    public ResponseEntity<ApiResponse<Object>> handleTooManyRequests(RuntimeException ex) {
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTooManyRequests(RuntimeException ex) {
         log.warn("Rate limit exceeded: {}", ex.getMessage());
-        ApiResponse<Object> response = new ApiResponse<>(false, "TOO_MANY_REQUESTS", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response);
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(new ApiResponse<>(false, null, "RATE_LIMIT_EXCEEDED", ex.getMessage()));
     }
 
     @ExceptionHandler({
@@ -72,101 +67,89 @@ public class GlobalExceptionHandler {
         AccountExpiredException.class,
         AccountAlreadyActivatedException.class
     })
-    public ResponseEntity<ApiResponse<Object>> handleUnauthorized(RuntimeException ex) {
-        ApiResponse<Object> response = new ApiResponse<>(false, "UNAUTHORIZED", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    public ResponseEntity<ApiResponse<Void>> handleUnauthorized(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponse<>(false, null, "UNAUTHORIZED", ex.getMessage()));
     }
 
     @ExceptionHandler(LockedException.class)
     public ResponseEntity<ApiResponse<Void>> handleLockedException(LockedException ex) {
         log.warn("Account locked: {}", ex.getMessage());
-
-        ApiResponse<Void> response = new ApiResponse<>(
-                false, null, "ACCOUNT_LOCKED", "Account is temporarily locked due to too many failed login attempts");
-
-        return ResponseEntity.status(HttpStatus.LOCKED).body(response);
+        return ResponseEntity.status(HttpStatus.LOCKED)
+                .body(new ApiResponse<>(
+                        false, null, "ACCOUNT_LOCKED", "Account temporarily locked due to multiple failed attempts"));
     }
 
     @ExceptionHandler(AccountStatusException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccountStatusException(AccountStatusException ex) {
         log.warn("Account status exception: {}", ex.getMessage());
-
-        ApiResponse<Void> response =
-                new ApiResponse<>(false, null, "ACCOUNT_STATUS_ERROR", "Account access denied due to account status");
-
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ApiResponse<>(
+                        false, null, "ACCOUNT_STATUS_ERROR", "Account access denied due to account status"));
     }
 
     @ExceptionHandler({OAuth2EmailConflictException.class, OAuth2ProviderException.class, OAuth2UserDataException.class
     })
-    public ResponseEntity<ApiResponse<Object>> handleOAuth2Exceptions(RuntimeException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleOAuth2Exceptions(RuntimeException ex) {
         log.warn("OAuth2 error: {}", ex.getMessage());
-
         String errorCode = determineOAuth2ErrorCode(ex);
-        ApiResponse<Object> response = new ApiResponse<>(false, errorCode, ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(false, null, errorCode, ex.getMessage()));
     }
 
     @ExceptionHandler(OAuth2AuthenticationException.class)
-    public ResponseEntity<ApiResponse<Object>> handleOAuth2AuthenticationException(OAuth2AuthenticationException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleOAuth2AuthenticationException(OAuth2AuthenticationException ex) {
         log.warn(
                 "OAuth2 authentication failed: {} - {}",
                 ex.getError().getErrorCode(),
                 ex.getError().getDescription());
-
         String userFriendlyMessage = getUserFriendlyOAuth2Message(ex);
-
-        ApiResponse<Object> response = new ApiResponse<>(
-                false, "OAUTH2_" + ex.getError().getErrorCode().toUpperCase(), userFriendlyMessage);
-
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-    }
-
-    private String determineOAuth2ErrorCode(RuntimeException ex) {
-        if (ex instanceof OAuth2EmailConflictException) {
-            return "OAUTH2_EMAIL_CONFLICT";
-        } else if (ex instanceof OAuth2ProviderException) {
-            return "OAUTH2_PROVIDER_ERROR";
-        } else if (ex instanceof OAuth2UserDataException) {
-            return "OAUTH2_USER_DATA_ERROR";
-        }
-        return "OAUTH2_ERROR";
-    }
-
-    private String getUserFriendlyOAuth2Message(OAuth2AuthenticationException ex) {
-        String errorCode = ex.getError().getErrorCode();
-
-        return switch (errorCode) {
-            case "access_denied" -> "You cancelled the sign-in process. Please try again if you want to continue.";
-            case "invalid_request" -> "There was an issue with the sign-in request. Please try again.";
-            case "server_error" -> "Google's servers are experiencing issues. Please try again in a few minutes.";
-            case "temporarily_unavailable" ->
-                "Google's sign-in service is temporarily unavailable. Please try again later.";
-            case "invalid_scope" -> "The requested permissions are not available. Please contact support.";
-            default -> "Sign-in with Google failed. Please try again or use email/password login.";
-        };
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponse<>(
+                        false, null, "OAUTH2_" + ex.getError().getErrorCode().toUpperCase(), userFriendlyMessage));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationExceptions(
             MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
-        ex.getBindingResult().getAllErrors().forEach((error) -> {
+        ex.getBindingResult().getAllErrors().forEach(error -> {
             String fieldName = ((FieldError) error).getField();
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
 
-        ApiResponse<Map<String, String>> response =
-                new ApiResponse<>(false, errors, "VALIDATION_ERROR", "Validation failed");
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(false, errors, "VALIDATION_ERROR", "Request validation failed"));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {
         log.error("Unexpected error occurred", ex);
-        ApiResponse<Object> response =
-                new ApiResponse<>(false, "INTERNAL_SERVER_ERROR", "An unexpected error occurred");
+        ApiResponse<Object> response = new ApiResponse<>(
+                false,
+                null, // no data
+                "INTERNAL_SERVER_ERROR", // error code
+                "An unexpected error occurred" // message
+                );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    }
+
+    private String determineOAuth2ErrorCode(RuntimeException ex) {
+        if (ex instanceof OAuth2EmailConflictException) return "OAUTH2_EMAIL_CONFLICT";
+        if (ex instanceof OAuth2ProviderException) return "OAUTH2_PROVIDER_ERROR";
+        if (ex instanceof OAuth2UserDataException) return "OAUTH2_USER_DATA_ERROR";
+        return "OAUTH2_ERROR";
+    }
+
+    private String getUserFriendlyOAuth2Message(OAuth2AuthenticationException ex) {
+        return switch (ex.getError().getErrorCode()) {
+            case "access_denied" -> "You cancelled the sign-in process";
+            case "invalid_request" -> "Invalid authentication request";
+            case "server_error" -> "Provider service unavailable";
+            case "temporarily_unavailable" -> "Service temporarily unavailable";
+            case "invalid_scope" -> "Invalid permissions requested";
+            default -> "Authentication failed";
+        };
     }
 }
