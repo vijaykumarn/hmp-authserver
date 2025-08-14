@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/api/v1/session")
+@RequestMapping("/api/session")
 @Tag(name = "session", description = "Session management")
 @SecurityRequirement(name = "cookieAuth")
 public class SessionController {

@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/security")
+@RequestMapping("/api/security")
 @Tag(name = "security", description = "Security and CSRF operations")
 public class CsrfController {
 
